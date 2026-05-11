@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const MAX_PHOTOS = 5;
+const MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
 export default function NewComplaint() {
   const navigate = useNavigate();
@@ -23,8 +26,42 @@ export default function NewComplaint() {
     date: todayISO(),
   });
   const [saving, setSaving] = useState(false);
+  const [photos, setPhotos] = useState([]); // [{file, previewUrl, id}]
+  const fileInputRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const addPhotos = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (photos.length + files.length > MAX_PHOTOS) {
+      toast.error(`Max ${MAX_PHOTOS} photos`);
+      e.target.value = "";
+      return;
+    }
+    const next = [...photos];
+    for (const f of files) {
+      if (!ALLOWED.includes(f.type)) {
+        toast.error(`${f.name}: only JPG/PNG/WebP`);
+        continue;
+      }
+      if (f.size > MAX_BYTES) {
+        toast.error(`${f.name}: exceeds 5MB`);
+        continue;
+      }
+      next.push({ file: f, previewUrl: URL.createObjectURL(f), id: `${Date.now()}-${f.name}` });
+    }
+    setPhotos(next);
+    e.target.value = "";
+  };
+
+  const removePhoto = (id) => {
+    setPhotos((prev) => {
+      const found = prev.find((p) => p.id === id);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -35,8 +72,33 @@ export default function NewComplaint() {
     setSaving(true);
     try {
       const { data } = await api.post("/complaints", form);
-      toast.success(`Complaint ${data.complaint_id} created`);
-      navigate(`/admin/c/${data.complaint_id}`);
+      const cid = data.complaint_id;
+
+      // Upload staged photos sequentially
+      if (photos.length > 0) {
+        let uploaded = 0;
+        for (const p of photos) {
+          try {
+            const fd = new FormData();
+            fd.append("file", p.file);
+            await api.post(`/complaints/${cid}/photos`, fd, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            uploaded += 1;
+          } catch (err) {
+            toast.error(err?.response?.data?.detail || `Failed to upload ${p.file.name}`);
+          }
+        }
+        if (uploaded > 0) {
+          toast.success(`Complaint ${cid} created with ${uploaded} photo${uploaded > 1 ? "s" : ""}`);
+        } else {
+          toast.success(`Complaint ${cid} created (photo upload failed)`);
+        }
+      } else {
+        toast.success(`Complaint ${cid} created`);
+      }
+      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      navigate(`/admin/c/${cid}`);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to create complaint");
     } finally {
@@ -96,6 +158,71 @@ export default function NewComplaint() {
               </div>
             </div>
           </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Product damage photos
+              <span className="text-xs font-normal text-slate-500 ml-1">(optional)</span>
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {photos.map((p) => (
+                <div
+                  key={p.id}
+                  className="relative group aspect-square rounded-md border border-slate-200 bg-slate-50 overflow-hidden"
+                  data-testid={`staged-photo-${p.id}`}
+                >
+                  <img
+                    src={p.previewUrl}
+                    alt={p.file.name}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(p.id)}
+                    className="absolute top-1.5 right-1.5 bg-white/95 hover:bg-red-50 text-red-600 border border-slate-200 rounded-md p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                    data-testid={`remove-staged-${p.id}`}
+                    title="Remove"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {photos.length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={saving}
+                  className="aspect-square rounded-md border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400 transition-colors flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-slate-700"
+                  data-testid="form-add-photo-btn"
+                >
+                  {saving ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="h-5 w-5" />
+                      <span className="text-xs font-medium">Add photo</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={addPhotos}
+              data-testid="form-photo-file-input"
+            />
+            <p className="text-xs text-slate-500 mt-3">
+              Attach product damage photos. JPG/PNG/WebP, up to 5MB each. {photos.length}/{MAX_PHOTOS} selected.
+            </p>
+          </Card>
         </div>
 
         <div>
@@ -108,6 +235,9 @@ export default function NewComplaint() {
               <li>A unique Complaint ID (e.g., <span className="font-mono">{new Date().getMonth() + 1}{new Date().getFullYear()}0001</span>) is generated.</li>
               <li>Initial status is set to <span className="status-pending px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Pending</span>.</li>
               <li>WhatsApp confirmation is sent to the customer with a tracking link.</li>
+              {photos.length > 0 && (
+                <li>{photos.length} photo{photos.length > 1 ? "s" : ""} will be attached to the complaint.</li>
+              )}
             </ul>
             <div className="mt-6 space-y-2">
               <Button
