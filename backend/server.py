@@ -35,6 +35,7 @@ PUBLIC_APP_URL = os.environ.get('PUBLIC_APP_URL', '')
 TWILIO_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')
+TWILIO_CONTENT_SID = os.environ.get('TWILIO_CONTENT_SID', '')
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -227,7 +228,16 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Status: Pending\n"
         f"Track here: {track_url}"
     )
-    send_whatsapp(complaint.phone, body_msg)
+    send_whatsapp(
+        complaint.phone,
+        body_msg,
+        content_variables={
+            "1": complaint.name,
+            "2": cid,
+            "3": "Pending",
+            "4": track_url,
+        },
+    )
     return complaint
 
 
