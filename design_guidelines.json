@@ -1,0 +1,111 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "brand_name": "sabewell",
+  "typography": {
+    "headings": {
+      "family": "Outfit, sans-serif",
+      "weight": "700",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weight": "400",
+      "letter_spacing": "tracking-normal"
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg font-medium",
+      "body": "text-base",
+      "small": "text-sm",
+      "tiny": "text-xs uppercase tracking-[0.2em] font-semibold"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#F8FAFC",
+      "tertiary": "#F1F5F9"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "tertiary": "#94A3B8"
+    },
+    "accent": {
+      "primary": "#000000",
+      "primary_hover": "#334155",
+      "secondary": "#2563EB",
+      "secondary_hover": "#1D4ED8"
+    },
+    "status": {
+      "pending": "#F59E0B",
+      "in_progress": "#3B82F6",
+      "resolved": "#10B981"
+    },
+    "border": "#E2E8F0"
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "p-4, p-6, p-8, p-12",
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "container_padding": "px-6 py-8 md:px-12 md:py-16",
+    "border_radius": "rounded-md"
+  },
+  "components": {
+    "cards": {
+      "style": "bg-white border border-slate-200 rounded-md",
+      "shadow": "shadow-sm",
+      "hover": "hover:shadow-md hover:border-slate-300 transition-all duration-200"
+    },
+    "buttons": {
+      "primary": "bg-black text-white hover:bg-slate-800 rounded-md px-6 py-2 font-medium transition-colors",
+      "secondary": "bg-white text-slate-900 border border-slate-200 hover:border-slate-400 hover:bg-slate-50 rounded-md px-6 py-2 transition-colors",
+      "status_pill": "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+    },
+    "inputs": {
+      "style": "bg-white border border-slate-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all"
+    },
+    "tables": {
+      "header": "bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold border-b border-slate-200",
+      "row": "border-b border-slate-100 hover:bg-slate-50 transition-colors",
+      "cell": "py-4 px-4 text-sm text-slate-900"
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "stroke-width 2, solid clear lines, minimal, high contrast"
+  },
+  "motion_and_interactions": {
+    "hover_states": "translate-y-[-2px] shadow-md opacity-90",
+    "transitions": "transition-all duration-200 ease-in-out",
+    "entrance": "fade-in slide-up for dashboard elements using framer-motion"
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxkZWxpdmVyeSUyMHRyYWNraW5nJTIwcGFja2FnZXxlbnwwfHx8fDE3Nzg0OTQ3OTF8MA&ixlib=rb-4.1.0&q=85",
+        "category": "hero_tracking",
+        "description": "Hero image for public tracking page showing delivery package tracking"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1659353739687-6e37ee1c2ddf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwyfHxkZWxpdmVyeSUyMHRyYWNraW5nJTIwcGFja2FnZXxlbnwwfHx8fDE3Nzg0OTQ3OTF8MA&ixlib=rb-4.1.0&q=85",
+        "category": "support_contact",
+        "description": "Background image for customer support context"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use LIGHT theme with Archetype 4 (Swiss & High-Contrast). Ensure high functionality and clarity.",
+    "Typography: Import and use 'Outfit' for headings and 'IBM Plex Sans' for body text. Do NOT use Inter.",
+    "Dashboard layout: Apply a 'Control Room' grid approach with flat bordered cards, maximizing space utility. Avoid heavy glassmorphism.",
+    "Status Indicators: strictly use the specified colors for Pending (amber), In Progress (blue), and Resolved (emerald) as colored pills.",
+    "Add 'data-testid' to ALL interactive elements (e.g., data-testid='complaint-submit-btn', data-testid='status-filter-pending').",
+    "The Public Tracking page should use a clean, asymmetric bento or split layout leveraging the 'hero_tracking' image.",
+    "Keep standard Shadcn components but override their styles to match the flat, high-contrast, 'border-slate-200 rounded-md' aesthetic."
+  ]
+}
