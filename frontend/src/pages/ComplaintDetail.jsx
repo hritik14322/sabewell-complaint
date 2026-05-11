@@ -11,10 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy } from "lucide-react";
+import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy, Camera } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { StatusPill, STATUSES, formatDateTime } from "@/lib/complaint";
+import PhotoGallery from "@/components/PhotoGallery";
 
 export default function ComplaintDetail() {
   const { cid } = useParams();
@@ -134,6 +135,19 @@ export default function ComplaintDetail() {
                 <Field label="Issue Description" value={c.issue_description} testid="detail-issue" multiline />
               </div>
             </dl>
+          </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Product damage photos
+            </h2>
+            <PhotoGallery
+              complaintId={c.complaint_id}
+              photos={c.photos || []}
+              editable={true}
+              publicMode={false}
+              onChange={(updated) => setC({ ...c, photos: updated })}
+            />
           </Card>
 
           <Card className="p-6 border-slate-200 shadow-sm">

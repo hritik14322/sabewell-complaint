@@ -3,9 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, ClipboardList, CheckCircle2, Loader2, Clock, MessageCircle } from "lucide-react";
+import { ArrowLeft, ClipboardList, CheckCircle2, Loader2, Clock, MessageCircle, Camera } from "lucide-react";
 import { StatusPill, formatDateTime, formatDate } from "@/lib/complaint";
 import Logo from "@/components/Logo";
+import PhotoGallery from "@/components/PhotoGallery";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -124,6 +125,20 @@ export default function PublicTrack() {
                     <Field label="Issue" value={data.issue_description} multiline />
                   </div>
                 </dl>
+
+                {(data.photos || []).length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-slate-100">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold flex items-center gap-2 mb-3">
+                      <Camera className="h-3 w-3" /> Damage photos
+                    </div>
+                    <PhotoGallery
+                      complaintId={data.complaint_id}
+                      photos={data.photos}
+                      editable={false}
+                      publicMode={true}
+                    />
+                  </div>
+                )}
               </Card>
 
               <Card className="p-6 border-slate-200 shadow-sm">

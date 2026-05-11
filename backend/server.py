@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Response, Header, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt as pyjwt
+import requests
 from pymongo import ReturnDocument
 
 ROOT_DIR = Path(__file__).parent
@@ -36,6 +37,15 @@ TWILIO_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')
 TWILIO_CONTENT_SID = os.environ.get('TWILIO_CONTENT_SID', '')
+
+# Emergent Object Storage
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+APP_NAME = os.environ.get('APP_NAME', 'sabewell')
+_storage_key: Optional[str] = None
+ALLOWED_IMAGE_MIME = {"image/jpeg", "image/png", "image/webp"}
+MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 5 MB
+MAX_PHOTOS_PER_COMPLAINT = 5
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -68,6 +78,7 @@ class Complaint(BaseModel):
     date: str  # ISO date string (YYYY-MM-DD)
     status: StatusType = "Pending"
     status_history: List[StatusHistoryEntry] = Field(default_factory=list)
+    photos: List[dict] = Field(default_factory=list)  # [{id, storage_path, original_filename, content_type, size, uploaded_at}]
     created_at: str
     updated_at: str
 
@@ -190,6 +201,76 @@ def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
 def build_tracking_url(complaint_id: str) -> str:
     base = PUBLIC_APP_URL.rstrip("/") if PUBLIC_APP_URL else ""
     return f"{base}/track/{complaint_id}"
+
+
+# ---------- Object Storage ----------
+def init_storage() -> Optional[str]:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    if not EMERGENT_KEY:
+        logger.warning("EMERGENT_LLM_KEY not set; storage disabled")
+        return None
+    try:
+        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        resp.raise_for_status()
+        _storage_key = resp.json()["storage_key"]
+        logger.info("Object storage initialized")
+        return _storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+
+def storage_put(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage unavailable")
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data,
+        timeout=120,
+    )
+    if resp.status_code == 403:
+        # Re-init and retry once
+        globals()["_storage_key"] = None
+        key = init_storage()
+        if not key:
+            raise HTTPException(status_code=503, detail="Storage unavailable")
+        resp = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key, "Content-Type": content_type},
+            data=data,
+            timeout=120,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def storage_get(path: str) -> tuple[bytes, str]:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage unavailable")
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key},
+        timeout=60,
+    )
+    if resp.status_code == 403:
+        globals()["_storage_key"] = None
+        key = init_storage()
+        if not key:
+            raise HTTPException(status_code=503, detail="Storage unavailable")
+        resp = requests.get(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key},
+            timeout=60,
+        )
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="File not found")
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
 # ---------- Routes ----------
@@ -332,12 +413,95 @@ async def stats(_: str = Depends(current_admin)):
     }
 
 
+# ---------- Photo endpoints ----------
+@api_router.post("/complaints/{cid}/photos")
+async def upload_photo(cid: str, file: UploadFile = File(...), _: str = Depends(current_admin)):
+    doc = await db.complaints.find_one({"complaint_id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    existing = doc.get("photos", []) or []
+    if len(existing) >= MAX_PHOTOS_PER_COMPLAINT:
+        raise HTTPException(status_code=400, detail=f"Max {MAX_PHOTOS_PER_COMPLAINT} photos per complaint")
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_IMAGE_MIME:
+        raise HTTPException(status_code=400, detail="Only JPG/PNG/WebP images allowed")
+    data = await file.read()
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=400, detail="Image exceeds 5MB limit")
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(content_type, "bin")
+    photo_id = str(uuid.uuid4())
+    path = f"{APP_NAME}/complaints/{cid}/{photo_id}.{ext}"
+    result = storage_put(path, data, content_type)
+
+    photo_record = {
+        "id": photo_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename or f"{photo_id}.{ext}",
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "uploaded_at": now_iso(),
+    }
+    await db.complaints.update_one(
+        {"complaint_id": cid},
+        {"$push": {"photos": photo_record}, "$set": {"updated_at": now_iso()}},
+    )
+    return photo_record
+
+
+@api_router.delete("/complaints/{cid}/photos/{photo_id}")
+async def delete_photo(cid: str, photo_id: str, _: str = Depends(current_admin)):
+    doc = await db.complaints.find_one({"complaint_id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    photos = doc.get("photos", []) or []
+    if not any(p["id"] == photo_id for p in photos):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    await db.complaints.update_one(
+        {"complaint_id": cid},
+        {"$pull": {"photos": {"id": photo_id}}, "$set": {"updated_at": now_iso()}},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/complaints/{cid}/photos/{photo_id}")
+async def get_photo_admin(cid: str, photo_id: str, _: str = Depends(current_admin)):
+    return await _fetch_photo(cid, photo_id)
+
+
+# Public photo (no auth) — used in public tracking page
+@api_router.get("/track/{cid}/photos/{photo_id}")
+async def get_photo_public(cid: str, photo_id: str):
+    return await _fetch_photo(cid, photo_id)
+
+
+async def _fetch_photo(cid: str, photo_id: str):
+    doc = await db.complaints.find_one(
+        {"complaint_id": cid, "photos.id": photo_id},
+        {"_id": 0, "photos": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    photo = next((p for p in doc.get("photos", []) if p["id"] == photo_id), None)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    data, content_type = storage_get(photo["storage_path"])
+    return Response(content=data, media_type=photo.get("content_type", content_type))
+
+
 # Public tracking — limited fields, no auth
 @api_router.get("/track/{cid}")
 async def track(cid: str):
     doc = await db.complaints.find_one({"complaint_id": cid}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Complaint not found")
+    # Strip storage_path from public view; expose only photo ids + filenames
+    public_photos = [
+        {"id": p["id"], "original_filename": p.get("original_filename"), "content_type": p.get("content_type")}
+        for p in (doc.get("photos", []) or [])
+    ]
     return {
         "complaint_id": doc["complaint_id"],
         "name": doc["name"],
@@ -347,6 +511,7 @@ async def track(cid: str):
         "date": doc["date"],
         "status": doc["status"],
         "status_history": doc.get("status_history", []),
+        "photos": public_photos,
         "created_at": doc["created_at"],
         "updated_at": doc["updated_at"],
         "brand": BRAND_NAME,
@@ -381,6 +546,11 @@ async def seed_admin():
         logger.info(f"Seeded admin: {ADMIN_EMAIL}")
     else:
         logger.info(f"Admin already exists: {ADMIN_EMAIL}")
+    # Initialize object storage
+    try:
+        init_storage()
+    except Exception as e:
+        logger.error(f"Storage init at startup failed: {e}")
 
 
 @app.on_event("shutdown")
