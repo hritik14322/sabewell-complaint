@@ -151,23 +151,36 @@ async def generate_complaint_id() -> str:
     return f"{now.month}{now.year}{seq:04d}"
 
 
-def send_whatsapp(to_phone: str, body: str) -> bool:
-    """Send a WhatsApp message via Twilio. Returns True on success, False if skipped/failed."""
+def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
+    """Send a WhatsApp message via Twilio. Returns True on success, False if skipped/failed.
+
+    If TWILIO_CONTENT_SID is set and content_variables provided, uses the pre-approved
+    Content Template; otherwise sends the freeform `body`.
+    """
     if not (TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM):
         logger.info("Twilio creds not set; skipping WhatsApp send")
         return False
     try:
+        import json as _json
         from twilio.rest import Client as TwilioClient
         twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN)
-        # Ensure E.164 phone; prepend 'whatsapp:' if not present
         to = to_phone.strip()
         if not to.startswith("whatsapp:"):
             if not to.startswith("+"):
                 to = "+" + to
             to = f"whatsapp:{to}"
         from_ = TWILIO_FROM if TWILIO_FROM.startswith("whatsapp:") else f"whatsapp:{TWILIO_FROM}"
-        msg = twilio_client.messages.create(body=body, from_=from_, to=to)
-        logger.info(f"WhatsApp sent: sid={msg.sid}")
+
+        if TWILIO_CONTENT_SID and content_variables:
+            msg = twilio_client.messages.create(
+                content_sid=TWILIO_CONTENT_SID,
+                content_variables=_json.dumps({str(k): str(v) for k, v in content_variables.items()}),
+                from_=from_,
+                to=to,
+            )
+        else:
+            msg = twilio_client.messages.create(body=body, from_=from_, to=to)
+        logger.info(f"WhatsApp sent: sid={msg.sid} status={msg.status}")
         return True
     except Exception as e:
         logger.warning(f"WhatsApp send failed: {e}")
