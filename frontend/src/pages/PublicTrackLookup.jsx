@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Search, ArrowLeft, ClipboardList } from "lucide-react";
+import Logo from "@/components/Logo";
 
 export default function PublicTrackLookup() {
   const navigate = useNavigate();
@@ -20,12 +21,7 @@ export default function PublicTrackLookup() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2" data-testid="lookup-home-link">
-            <div className="w-8 h-8 bg-black rounded-md flex items-center justify-center">
-              <ClipboardList className="h-4 w-4 text-white" />
-            </div>
-            <div className="font-heading font-bold text-lg tracking-tight">sabewell</div>
-          </Link>
+          <Logo to="/" size="md" testid="lookup-brand-logo" />
           <Link to="/" className="text-sm text-slate-600 hover:text-slate-900" data-testid="lookup-back-link">
             <ArrowLeft className="h-4 w-4 inline mr-1" /> Back
           </Link>
@@ -46,7 +42,7 @@ export default function PublicTrackLookup() {
             <Input
               value={cid}
               onChange={(e) => setCid(e.target.value)}
-              placeholder="CMP-2026-0001"
+              placeholder="520260001"
               className="flex-1 bg-white border-slate-300 focus-visible:ring-slate-900 font-mono"
               data-testid="lookup-cid-input"
             />
@@ -55,7 +51,7 @@ export default function PublicTrackLookup() {
             </Button>
           </form>
           <p className="text-xs text-slate-500 mt-3">
-            Tip: the ID looks like <span className="font-mono">CMP-YYYY-NNNN</span> and was sent to you via WhatsApp.
+            Tip: the ID looks like <span className="font-mono">MYYYYNNNN</span> and was sent to you via WhatsApp.
           </p>
         </Card>
       </main>

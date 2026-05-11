@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, ShieldCheck, MessageCircle, Search, ClipboardList } from "lucide-react";
+import { ArrowRight, ShieldCheck, MessageCircle, Search } from "lucide-react";
+import Logo from "@/components/Logo";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -20,12 +21,7 @@ export default function Landing() {
     <div className="min-h-screen bg-white">
       <header className="border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-md flex items-center justify-center">
-              <ClipboardList className="h-4 w-4 text-white" />
-            </div>
-            <div className="font-heading font-bold text-xl tracking-tight">sabewell</div>
-          </div>
+          <Logo to="/" size="md" testid="landing-brand-logo" />
           <div className="flex items-center gap-3">
             <Link to="/track" data-testid="header-track-link" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Track complaint</Link>
             <Link to="/login" data-testid="header-admin-login-link">
@@ -55,7 +51,7 @@ export default function Landing() {
               <Input
                 value={cid}
                 onChange={(e) => setCid(e.target.value)}
-                placeholder="Enter Complaint ID e.g. CMP-2026-0001"
+                placeholder="Enter Complaint ID e.g. 520260001"
                 className="bg-white border-slate-300 focus-visible:ring-slate-900"
                 data-testid="landing-track-input"
               />

@@ -105,7 +105,7 @@ export default function NewComplaint() {
               On submit:
             </p>
             <ul className="text-sm text-slate-600 mt-2 space-y-1 list-disc list-inside">
-              <li>A unique Complaint ID (e.g., <span className="font-mono">CMP-{new Date().getFullYear()}-0001</span>) is generated.</li>
+              <li>A unique Complaint ID (e.g., <span className="font-mono">{new Date().getMonth() + 1}{new Date().getFullYear()}0001</span>) is generated.</li>
               <li>Initial status is set to <span className="status-pending px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Pending</span>.</li>
               <li>WhatsApp confirmation is sent to the customer with a tracking link.</li>
             </ul>

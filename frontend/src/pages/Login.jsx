@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ClipboardList, ArrowLeft } from "lucide-react";
 import api from "@/lib/api";
+import Logo from "@/components/Logo";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -38,13 +39,10 @@ export default function Login() {
         </Link>
       </div>
       <Card className="w-full max-w-md p-8 border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-9 h-9 bg-black rounded-md flex items-center justify-center">
-            <ClipboardList className="h-5 w-5 text-white" />
-          </div>
+        <div className="flex items-center gap-3 mb-6">
+          <Logo to={null} size="md" testid="login-brand-logo" />
           <div>
-            <div className="font-heading font-bold text-xl tracking-tight leading-none">sabewell</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold mt-0.5">Admin Console</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold">Admin Console</div>
           </div>
         </div>
 

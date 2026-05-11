@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, ClipboardList, CheckCircle2, Loader2, Clock, MessageCircle } from "lucide-react";
 import { StatusPill, formatDateTime, formatDate } from "@/lib/complaint";
+import Logo from "@/components/Logo";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -54,12 +55,7 @@ export default function PublicTrack() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2" data-testid="track-home-link">
-            <div className="w-8 h-8 bg-black rounded-md flex items-center justify-center">
-              <ClipboardList className="h-4 w-4 text-white" />
-            </div>
-            <div className="font-heading font-bold text-lg tracking-tight">sabewell</div>
-          </Link>
+          <Logo to="/" size="md" testid="track-brand-logo" />
           <Link to="/track" className="text-sm text-slate-600 hover:text-slate-900" data-testid="track-other-link">
             <ArrowLeft className="h-4 w-4 inline mr-1" /> Track another
           </Link>

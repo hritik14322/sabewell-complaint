@@ -137,16 +137,17 @@ async def current_admin(cred: Optional[HTTPAuthorizationCredentials] = Depends(s
 
 
 async def generate_complaint_id() -> str:
-    year = datetime.now(timezone.utc).year
-    # Atomic counter per year using upsert + $inc
+    """Generate a globally-incrementing ID: {month}{year}{seq:04d} e.g. 520260001."""
+    now = datetime.now(timezone.utc)
+    # Global counter, increments regardless of month/year change
     counter = await db.counters.find_one_and_update(
-        {"_id": f"complaint_{year}"},
+        {"_id": "complaint_global"},
         {"$inc": {"seq": 1}},
         upsert=True,
         return_document=ReturnDocument.AFTER,
     )
     seq = counter["seq"]
-    return f"CMP-{year}-{seq:04d}"
+    return f"{now.month}{now.year}{seq:04d}"
 
 
 def send_whatsapp(to_phone: str, body: str) -> bool:
