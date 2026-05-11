@@ -1,0 +1,235 @@
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import AdminLayout from "@/components/AdminLayout";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy } from "lucide-react";
+import { toast } from "sonner";
+import api from "@/lib/api";
+import { StatusPill, STATUSES, formatDateTime } from "@/lib/complaint";
+
+export default function ComplaintDetail() {
+  const { cid } = useParams();
+  const [c, setC] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [newStatus, setNewStatus] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const fetchOne = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get(`/complaints/${cid}`);
+      setC(data);
+      setNewStatus(data.status);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Not found");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOne();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cid]);
+
+  const updateStatus = async () => {
+    if (!c) return;
+    if (newStatus === c.status) {
+      toast.error("Status is unchanged");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/complaints/${cid}/status`, {
+        status: newStatus,
+        note: note || null,
+      });
+      setC(data);
+      setNote("");
+      toast.success(`Status updated to ${data.status}. Customer notified.`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to update status");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const trackUrl = `${window.location.origin}/track/${cid}`;
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(trackUrl);
+      toast.success("Tracking link copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout title="Loading...">
+        <div className="text-slate-500 text-sm">Fetching complaint...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!c) {
+    return (
+      <AdminLayout title="Not found">
+        <Link to="/admin">
+          <Button variant="outline" className="border-slate-200 hover:border-slate-400">
+            <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to dashboard
+          </Button>
+        </Link>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout
+      title={c.complaint_id}
+      action={
+        <Link to="/admin" data-testid="detail-back">
+          <Button variant="outline" className="border-slate-200 hover:border-slate-400">
+            <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+          </Button>
+        </Link>
+      }
+    >
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Status</div>
+                <div className="mt-2"><StatusPill status={c.status} testid="detail-current-status" /></div>
+              </div>
+              <div className="text-sm text-slate-500">
+                <div>Created {formatDateTime(c.created_at)}</div>
+                <div>Updated {formatDateTime(c.updated_at)}</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold mb-4">Customer</h2>
+            <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+              <Field label="Name" value={c.name} testid="detail-name" />
+              <Field label="Phone" value={c.phone} testid="detail-phone" mono />
+              <Field label="Date" value={c.date} testid="detail-date" />
+              <Field label="Product Serial" value={c.product_serial} testid="detail-serial" mono />
+              <div className="sm:col-span-2">
+                <Field label="Address" value={c.address} testid="detail-address" />
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="Issue Description" value={c.issue_description} testid="detail-issue" multiline />
+              </div>
+            </dl>
+          </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold mb-4">Timeline</h2>
+            <ol className="relative border-l border-slate-200 ml-3 space-y-6">
+              {[...c.status_history].reverse().map((h, idx) => (
+                <li key={idx} className="ml-6">
+                  <span className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-white border-2 border-slate-900" />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusPill status={h.status} />
+                    <span className="text-xs text-slate-500">{formatDateTime(h.at)}</span>
+                  </div>
+                  {h.note && <p className="text-sm text-slate-700 mt-1.5">{h.note}</p>}
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold">Update status</h2>
+            <p className="text-sm text-slate-600 mt-1">A WhatsApp message will be sent to the customer.</p>
+            <div className="mt-4 space-y-3">
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger className="bg-white border-slate-300" data-testid="status-select">
+                  <SelectValue placeholder="Choose status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s} data-testid={`status-option-${s.toLowerCase().replace(" ", "-")}`}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Add an internal note (optional, sent to customer too)"
+                className="bg-white border-slate-300 focus-visible:ring-slate-900"
+                data-testid="status-note-input"
+              />
+              <Button
+                onClick={updateStatus}
+                disabled={saving || newStatus === c.status}
+                className="w-full bg-black hover:bg-slate-800 text-white"
+                data-testid="status-update-btn"
+              >
+                <MessageCircle className="h-4 w-4 mr-1.5" />
+                {saving ? "Updating..." : "Update & notify"}
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" /> Tracking link
+            </h2>
+            <p className="text-sm text-slate-600 mt-1">Share this link with the customer.</p>
+            <div className="mt-3 flex gap-2">
+              <input
+                readOnly
+                value={trackUrl}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-700 outline-none"
+                data-testid="tracking-link-input"
+              />
+              <Button onClick={copyLink} variant="outline" size="sm" className="border-slate-200 hover:border-slate-400" data-testid="copy-tracking-link-btn">
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <Link
+              to={`/track/${c.complaint_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-slate-600 hover:text-slate-900 underline mt-3 inline-block"
+              data-testid="open-tracking-link"
+            >
+              Open public tracking page →
+            </Link>
+          </Card>
+        </div>
+      </div>
+    </AdminLayout>
+  );
+}
+
+function Field({ label, value, mono, multiline, testid }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold">{label}</div>
+      <div
+        data-testid={testid}
+        className={`mt-1.5 text-slate-900 ${mono ? "font-mono" : ""} ${multiline ? "whitespace-pre-wrap" : ""}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
