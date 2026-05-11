@@ -37,6 +37,7 @@ TWILIO_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')
 TWILIO_CONTENT_SID = os.environ.get('TWILIO_CONTENT_SID', '')
+TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM', '')
 
 # Emergent Object Storage
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
@@ -198,6 +199,25 @@ def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
         return False
 
 
+def send_sms(to_phone: str, body: str) -> bool:
+    """Send a plain SMS via Twilio. Returns True on success, False if skipped/failed."""
+    if not (TWILIO_SID and TWILIO_TOKEN and TWILIO_SMS_FROM):
+        logger.info("Twilio SMS creds not set; skipping SMS send")
+        return False
+    try:
+        from twilio.rest import Client as TwilioClient
+        twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN)
+        to = to_phone.strip()
+        if not to.startswith("+"):
+            to = "+" + to
+        msg = twilio_client.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to)
+        logger.info(f"SMS sent: sid={msg.sid} status={msg.status} to={to}")
+        return True
+    except Exception as e:
+        logger.warning(f"SMS send failed: {e}")
+        return False
+
+
 def build_tracking_url(complaint_id: str) -> str:
     base = PUBLIC_APP_URL.rstrip("/") if PUBLIC_APP_URL else ""
     return f"{base}/track/{complaint_id}"
@@ -332,6 +352,7 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
             "4": track_url,
         },
     )
+    send_sms(complaint.phone, body_msg)
     return complaint
 
 
@@ -395,7 +416,17 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + (f"Note: {body.note}\n" if body.note else "")
         + f"Track here: {track_url}"
     )
-    send_whatsapp(doc["phone"], body_msg)
+    send_whatsapp(
+        doc["phone"],
+        body_msg,
+        content_variables={
+            "1": doc["name"],
+            "2": cid,
+            "3": body.status,
+            "4": track_url,
+        },
+    )
+    send_sms(doc["phone"], body_msg)
     return doc
 
 
