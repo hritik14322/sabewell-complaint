@@ -59,6 +59,8 @@ logger = logging.getLogger(__name__)
 # ---------- Models ----------
 StatusType = Literal["Pending", "In Progress", "Resolved"]
 ALLOWED_STATUSES = ("Pending", "In Progress", "Resolved")
+WarrantyType = Literal["Warranted", "Unwarranted"]
+ALLOWED_WARRANTY = ("Warranted", "Unwarranted")
 
 
 class StatusHistoryEntry(BaseModel):
@@ -85,6 +87,7 @@ class Complaint(BaseModel):
     issue_description: str
     date: str  # ISO date string (YYYY-MM-DD)
     status: StatusType = "Pending"
+    warranty: WarrantyType = "Warranted"
     status_history: List[StatusHistoryEntry] = Field(default_factory=list)
     photos: List[dict] = Field(default_factory=list)
     created_at: str
@@ -104,6 +107,7 @@ class ComplaintCreate(BaseModel):
     pincode: Optional[str] = ""
     invoice_number: Optional[str] = ""
     product_details: Optional[str] = ""
+    warranty: WarrantyType = "Warranted"
     date: Optional[str] = None
 
 
@@ -129,6 +133,10 @@ class CustomerUpsert(BaseModel):
     district: Optional[str] = ""
     state: Optional[str] = ""
     pincode: Optional[str] = ""
+
+
+class ComplaintWarrantyUpdate(BaseModel):
+    warranty: WarrantyType
 
 
 class CustomerPhoneChange(CustomerUpsert):
@@ -377,6 +385,7 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         issue_description=body.issue_description.strip(),
         date=today,
         status="Pending",
+        warranty=body.warranty,
         status_history=[StatusHistoryEntry(status="Pending", note="Complaint registered", at=now)],
         created_at=now,
         updated_at=now,
@@ -496,6 +505,23 @@ async def delete_complaint(cid: str, _: str = Depends(current_admin)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Complaint not found")
     return {"ok": True}
+
+
+@api_router.patch("/complaints/{cid}/warranty", response_model=Complaint)
+async def update_warranty(cid: str, body: ComplaintWarrantyUpdate, _: str = Depends(current_admin)):
+    if body.warranty not in ALLOWED_WARRANTY:
+        raise HTTPException(status_code=400, detail="Invalid warranty value")
+    doc = await db.complaints.find_one({"complaint_id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    now = now_iso()
+    await db.complaints.update_one(
+        {"complaint_id": cid},
+        {"$set": {"warranty": body.warranty, "updated_at": now}},
+    )
+    doc["warranty"] = body.warranty
+    doc["updated_at"] = now
+    return doc
 
 
 # ---------- Customer endpoints ----------

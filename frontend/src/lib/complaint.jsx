@@ -2,6 +2,24 @@ import React from "react";
 import { Clock, Loader2, CheckCircle2 } from "lucide-react";
 
 export const STATUSES = ["Pending", "In Progress", "Resolved"];
+export const WARRANTIES = ["Warranted", "Unwarranted"];
+
+export function warrantyClass(w) {
+  if (w === "Warranted") return "bg-emerald-50 text-emerald-800 border border-emerald-200";
+  if (w === "Unwarranted") return "bg-rose-50 text-rose-800 border border-rose-200";
+  return "bg-slate-50 text-slate-700 border border-slate-200";
+}
+
+export function WarrantyPill({ warranty, testid }) {
+  return (
+    <span
+      data-testid={testid}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${warrantyClass(warranty)}`}
+    >
+      {warranty || "—"}
+    </span>
+  );
+}
 
 export function statusClass(status) {
   if (status === "Pending") return "status-pending";

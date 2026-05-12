@@ -6,9 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Camera, ImagePlus, X, Loader2, UserCheck, AlertCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Camera, ImagePlus, X, Loader2, UserCheck, AlertCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { WARRANTIES } from "@/lib/complaint";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const MAX_PHOTOS = 5;
@@ -28,6 +36,7 @@ const EMPTY = {
   product_details: "",
   product_serial: "",
   issue_description: "",
+  warranty: "Warranted",
   date: todayISO(),
 };
 
@@ -252,6 +261,19 @@ export default function NewComplaint() {
               <div className="space-y-1.5">
                 <Label htmlFor="date">Date</Label>
                 <Input id="date" type="date" value={form.date} onChange={set("date")} className="bg-white border-slate-300 focus-visible:ring-slate-900" data-testid="form-date-input" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="warranty" className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Warranty status</Label>
+                <Select value={form.warranty} onValueChange={(v) => setForm((f) => ({ ...f, warranty: v }))}>
+                  <SelectTrigger className="bg-white border-slate-300" data-testid="form-warranty-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WARRANTIES.map((w) => (
+                      <SelectItem key={w} value={w} data-testid={`form-warranty-${w.toLowerCase()}`}>{w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="issue">Issue description</Label>

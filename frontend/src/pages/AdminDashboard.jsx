@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
-import { StatusPill, formatDate, formatDateTime, STATUSES } from "@/lib/complaint";
+import { StatusPill, WarrantyPill, formatDate, formatDateTime, STATUSES } from "@/lib/complaint";
 
 const STAT_TILES = [
   { key: "total", label: "Total", color: "text-slate-900", dot: "bg-slate-900" },
@@ -177,6 +177,11 @@ export default function AdminDashboard() {
                   <TableCell className="py-4 text-sm text-slate-700 hidden lg:table-cell">{formatDate(c.date)}</TableCell>
                   <TableCell className="py-4">
                     <StatusPill status={c.status} testid={`row-status-${c.complaint_id}`} />
+                    {c.warranty && (
+                      <div className="mt-1.5">
+                        <WarrantyPill warranty={c.warranty} testid={`row-warranty-${c.complaint_id}`} />
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="py-4 text-right">
                     <Link to={`/admin/c/${c.complaint_id}`} data-testid={`row-arrow-${c.complaint_id}`}>

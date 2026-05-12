@@ -14,7 +14,7 @@ import {
 import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy, Camera, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
-import { StatusPill, STATUSES, formatDateTime } from "@/lib/complaint";
+import { StatusPill, STATUSES, WARRANTIES, WarrantyPill, formatDateTime } from "@/lib/complaint";
 import PhotoGallery from "@/components/PhotoGallery";
 
 export default function ComplaintDetail() {
@@ -87,6 +87,17 @@ export default function ComplaintDetail() {
     }
   };
 
+  const updateWarranty = async (newW) => {
+    if (!c || newW === c.warranty) return;
+    try {
+      const { data } = await api.patch(`/complaints/${cid}/warranty`, { warranty: newW });
+      setC(data);
+      toast.success(`Warranty set to ${newW}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to update warranty");
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout title="Loading...">
@@ -132,9 +143,27 @@ export default function ComplaintDetail() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6 border-slate-200 shadow-sm">
             <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Status</div>
-                <div className="mt-2"><StatusPill status={c.status} testid="detail-current-status" /></div>
+              <div className="flex gap-6 flex-wrap">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Status</div>
+                  <div className="mt-2"><StatusPill status={c.status} testid="detail-current-status" /></div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Warranty</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <WarrantyPill warranty={c.warranty} testid="detail-current-warranty" />
+                    <Select value={c.warranty} onValueChange={updateWarranty}>
+                      <SelectTrigger className="h-7 px-2 text-xs bg-white border-slate-300 w-auto" data-testid="detail-warranty-select">
+                        <SelectValue placeholder="Change" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WARRANTIES.map((w) => (
+                          <SelectItem key={w} value={w} data-testid={`detail-warranty-option-${w.toLowerCase()}`}>{w}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="text-sm text-slate-500">
                 <div>Created {formatDateTime(c.created_at)}</div>
