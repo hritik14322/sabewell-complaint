@@ -529,14 +529,15 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Status: Pending\n"
         f"Track here: {track_url}"
     )
-    sms_ok, sms_msg = send_sms(phone, body_msg)
+    # Primary: Fast2SMS (Indian numbers, no prefix). Fallback: Twilio (for non-Indian or outages).
+    sms_ok, sms_msg = send_sms_fast2sms(phone, body_msg)
     if not sms_ok:
-        f2_ok, f2_msg = send_sms_fast2sms(phone, body_msg)
-        if f2_ok:
+        tw_ok, tw_msg = send_sms(phone, body_msg)
+        if tw_ok:
             sms_ok = True
-            sms_msg = f2_msg
+            sms_msg = tw_msg
         else:
-            sms_msg = f"Twilio: {sms_msg} | Fast2SMS: {f2_msg}"
+            sms_msg = f"Fast2SMS: {sms_msg} | Twilio: {tw_msg}"
     wa_ok, wa_msg = send_whatsapp_fast2sms(
         phone,
         [complaint.name, cid, "Pending", track_url],
@@ -620,14 +621,15 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + (f"Note: {body.note}\n" if body.note else "")
         + f"Track here: {track_url}"
     )
-    send_sms_ok, send_sms_msg = send_sms(doc["phone"], body_msg)
+    # Primary: Fast2SMS. Fallback: Twilio.
+    send_sms_ok, send_sms_msg = send_sms_fast2sms(doc["phone"], body_msg)
     if not send_sms_ok:
-        f2_ok, f2_msg = send_sms_fast2sms(doc["phone"], body_msg)
-        if f2_ok:
+        tw_ok, tw_msg = send_sms(doc["phone"], body_msg)
+        if tw_ok:
             send_sms_ok = True
-            send_sms_msg = f2_msg
+            send_sms_msg = tw_msg
         else:
-            send_sms_msg = f"Twilio: {send_sms_msg} | Fast2SMS: {f2_msg}"
+            send_sms_msg = f"Fast2SMS: {send_sms_msg} | Twilio: {tw_msg}"
     wa_ok, wa_msg = send_whatsapp_fast2sms(
         doc["phone"],
         [doc["name"], cid, body.status, track_url],
