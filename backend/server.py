@@ -490,6 +490,14 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
     return doc
 
 
+@api_router.delete("/complaints/{cid}")
+async def delete_complaint(cid: str, _: str = Depends(current_admin)):
+    res = await db.complaints.delete_one({"complaint_id": cid})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    return {"ok": True}
+
+
 # ---------- Customer endpoints ----------
 def _customer_clean(c: dict) -> dict:
     """Strip MongoDB internals and ensure all fields present."""

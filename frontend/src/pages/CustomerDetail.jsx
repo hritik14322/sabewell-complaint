@@ -72,15 +72,15 @@ export default function CustomerDetail() {
   };
 
   const remove = async () => {
-    const cascade = window.confirm(
-      "Delete this customer?\n\nOK = also delete all their complaints permanently.\nCancel = keep the customer record (or click 'Cancel' on the next prompt to abort)."
-    );
-    const sure = window.confirm("Are you absolutely sure? This cannot be undone.");
-    if (!sure) return;
+    return; // disabled — customer deletion is not allowed
+  };
+
+  const deleteComplaint = async (cid) => {
+    if (!window.confirm(`Delete complaint ${cid}? This cannot be undone.`)) return;
     try {
-      await api.delete(`/customers/${encodeURIComponent(phone)}`, { params: { cascade } });
-      toast.success("Customer deleted");
-      navigate("/admin/customers", { replace: true });
+      await api.delete(`/complaints/${cid}`);
+      toast.success(`Complaint ${cid} deleted`);
+      fetchOne();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Delete failed");
     }
@@ -111,14 +111,9 @@ export default function CustomerDetail() {
             </Button>
           </Link>
           {!editing && (
-            <>
-              <Button variant="outline" className="border-slate-200 hover:border-slate-400" onClick={() => setEditing(true)} data-testid="customer-edit-btn">
-                <Pencil className="h-4 w-4 mr-1.5" /> Edit
-              </Button>
-              <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" onClick={remove} data-testid="customer-delete-btn">
-                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
-              </Button>
-            </>
+            <Button variant="outline" className="border-slate-200 hover:border-slate-400" onClick={() => setEditing(true)} data-testid="customer-edit-btn">
+              <Pencil className="h-4 w-4 mr-1.5" /> Edit
+            </Button>
           )}
         </div>
       }
@@ -194,9 +189,20 @@ export default function CustomerDetail() {
                       <TableCell className="py-3 text-sm text-slate-700 hidden md:table-cell font-mono">{cp.product_serial}</TableCell>
                       <TableCell className="py-3"><StatusPill status={cp.status} /></TableCell>
                       <TableCell className="py-3 text-right">
-                        <Link to={`/admin/c/${cp.complaint_id}`}>
-                          <ChevronRight className="h-4 w-4 text-slate-400 hover:text-slate-900 inline" />
-                        </Link>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => deleteComplaint(cp.complaint_id)}
+                            className="p-1 rounded-md text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete complaint"
+                            data-testid={`history-delete-${cp.complaint_id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <Link to={`/admin/c/${cp.complaint_id}`}>
+                            <ChevronRight className="h-4 w-4 text-slate-400 hover:text-slate-900 inline" />
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

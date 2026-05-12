@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy, Camera } from "lucide-react";
+import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy, Camera, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { StatusPill, STATUSES, formatDateTime } from "@/lib/complaint";
@@ -19,6 +19,7 @@ import PhotoGallery from "@/components/PhotoGallery";
 
 export default function ComplaintDetail() {
   const { cid } = useParams();
+  const navigate = useNavigate();
   const [c, setC] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newStatus, setNewStatus] = useState("");
@@ -75,6 +76,17 @@ export default function ComplaintDetail() {
     }
   };
 
+  const deleteComplaint = async () => {
+    if (!window.confirm(`Delete complaint ${cid}? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/complaints/${cid}`);
+      toast.success(`Complaint ${cid} deleted`);
+      navigate("/admin", { replace: true });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Delete failed");
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout title="Loading...">
@@ -99,11 +111,21 @@ export default function ComplaintDetail() {
     <AdminLayout
       title={c.complaint_id}
       action={
-        <Link to="/admin" data-testid="detail-back">
-          <Button variant="outline" className="border-slate-200 hover:border-slate-400">
-            <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+        <div className="flex gap-2">
+          <Link to="/admin" data-testid="detail-back">
+            <Button variant="outline" className="border-slate-200 hover:border-slate-400">
+              <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+            onClick={deleteComplaint}
+            data-testid="detail-delete-complaint-btn"
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" /> Delete
           </Button>
-        </Link>
+        </div>
       }
     >
       <div className="grid lg:grid-cols-3 gap-6">
