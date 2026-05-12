@@ -501,9 +501,16 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
 
 @api_router.delete("/complaints/{cid}")
 async def delete_complaint(cid: str, _: str = Depends(current_admin)):
-    res = await db.complaints.delete_one({"complaint_id": cid})
-    if res.deleted_count == 0:
+    doc = await db.complaints.find_one({"complaint_id": cid}, {"_id": 0, "phone": 1})
+    if not doc:
         raise HTTPException(status_code=404, detail="Complaint not found")
+    phone = doc.get("phone", "")
+    await db.complaints.delete_one({"complaint_id": cid})
+    # Auto-delete customer if they have no complaints left
+    if phone:
+        remaining = await db.complaints.count_documents({"phone": phone})
+        if remaining == 0:
+            await db.customers.delete_one({"phone": phone})
     return {"ok": True}
 
 
@@ -633,6 +640,13 @@ async def list_customers(q: Optional[str] = None, _: str = Depends(current_admin
             upsert=True,
         )
 
+    # Prune: delete any customers with zero complaints
+    phones_with_complaints = set()
+    async for row in db.complaints.aggregate([{"$group": {"_id": "$phone"}}]):
+        if row["_id"]:
+            phones_with_complaints.add(row["_id"])
+    await db.customers.delete_many({"phone": {"$nin": list(phones_with_complaints)}})
+
     query: dict = {}
     if q:
         rx = {"$regex": q, "$options": "i"}
@@ -648,7 +662,6 @@ async def list_customers(q: Optional[str] = None, _: str = Depends(current_admin
         ]
     cursor = db.customers.find(query, {"_id": 0}).sort("updated_at", -1)
     customers = await cursor.to_list(1000)
-    # Attach complaint counts
     phones = [c["phone"] for c in customers]
     counts = {}
     if phones:
