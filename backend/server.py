@@ -249,23 +249,50 @@ def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
         return False
 
 
-def send_sms(to_phone: str, body: str) -> bool:
-    """Send a plain SMS via Twilio. Returns True on success, False if skipped/failed."""
+def normalize_phone(raw: str) -> str:
+    """Normalize a phone to E.164. Handles common Indian patterns."""
+    if not raw:
+        return raw
+    p = raw.strip().replace(" ", "").replace("-", "")
+    if p.startswith("+"):
+        return p
+    # 10 digits starting with 6-9 → Indian mobile
+    if len(p) == 10 and p[0] in "6789":
+        return f"+91{p}"
+    # 12 digits starting with 91 → Indian with country code, missing +
+    if len(p) == 12 and p.startswith("91"):
+        return f"+{p}"
+    # 11 digits starting with 0 → strip leading 0 and try Indian
+    if len(p) == 11 and p.startswith("0") and p[1] in "6789":
+        return f"+91{p[1:]}"
+    # Fallback: add + so Twilio validates it (and surfaces a clean error if invalid)
+    return f"+{p}"
+
+
+def send_sms(to_phone: str, body: str) -> tuple[bool, str]:
+    """Send a plain SMS via Twilio. Returns (success, message)."""
     if not (TWILIO_SID and TWILIO_TOKEN and TWILIO_SMS_FROM):
         logger.info("Twilio SMS creds not set; skipping SMS send")
-        return False
+        return False, "SMS not configured"
     try:
         from twilio.rest import Client as TwilioClient
         twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN)
-        to = to_phone.strip()
-        if not to.startswith("+"):
-            to = "+" + to
+        to = normalize_phone(to_phone)
         msg = twilio_client.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to)
         logger.info(f"SMS sent: sid={msg.sid} status={msg.status} to={to}")
-        return True
+        return True, f"SMS sent to {to}"
     except Exception as e:
-        logger.warning(f"SMS send failed: {e}")
-        return False
+        err = str(e)
+        # Extract human message from Twilio error
+        if "unverified" in err.lower():
+            short = "Recipient not verified on Twilio (trial account)"
+        elif "Invalid" in err and "Phone Number" in err:
+            short = "Invalid phone number format"
+        else:
+            # Take last 200 chars of error to avoid huge messages
+            short = err.split(":")[-1].strip()[:200]
+        logger.warning(f"SMS send failed: {err}")
+        return False, short
 
 
 def build_tracking_url(complaint_id: str) -> str:
@@ -363,12 +390,12 @@ async def me(email: str = Depends(current_admin)):
     return {"email": email}
 
 
-@api_router.post("/complaints", response_model=Complaint)
+@api_router.post("/complaints")
 async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin)):
     cid = await generate_complaint_id()
     today = body.date or datetime.now(timezone.utc).date().isoformat()
     now = now_iso()
-    phone = body.phone.strip()
+    phone = normalize_phone(body.phone.strip())
     complaint = Complaint(
         complaint_id=cid,
         name=body.name.strip(),
@@ -421,8 +448,13 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Status: Pending\n"
         f"Track here: {track_url}"
     )
-    send_sms(phone, body_msg)
-    return complaint
+    sms_ok, sms_msg = send_sms(phone, body_msg)
+    result = complaint.model_dump()
+    result["sms_status"] = {"ok": sms_ok, "message": sms_msg}
+    return result
+
+
+# (Status update notification also returns SMS status — see update_status below)
 
 
 @api_router.get("/complaints", response_model=List[Complaint])
@@ -464,7 +496,7 @@ async def get_complaint(cid: str, _: str = Depends(current_admin)):
     return doc
 
 
-@api_router.patch("/complaints/{cid}/status", response_model=Complaint)
+@api_router.patch("/complaints/{cid}/status")
 async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(current_admin)):
     if body.status not in ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -495,7 +527,8 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + (f"Note: {body.note}\n" if body.note else "")
         + f"Track here: {track_url}"
     )
-    send_sms(doc["phone"], body_msg)
+    send_sms_ok, send_sms_msg = send_sms(doc["phone"], body_msg)
+    doc["sms_status"] = {"ok": send_sms_ok, "message": send_sms_msg}
     return doc
 
 

@@ -58,7 +58,12 @@ export default function ComplaintDetail() {
       });
       setC(data);
       setNote("");
-      toast.success(`Status updated to ${data.status}. SMS sent to customer.`);
+      const sms = data.sms_status || { ok: false, message: "" };
+      if (sms.ok) {
+        toast.success(`Status set to ${data.status}. SMS sent.`);
+      } else {
+        toast.error(`Status updated, but SMS failed: ${sms.message || "see logs"}`);
+      }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update status");
     } finally {

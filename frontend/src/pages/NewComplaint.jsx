@@ -185,7 +185,7 @@ export default function NewComplaint() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="phone" className="flex items-center gap-2">
-                  Phone (with country code)
+                  Phone No.
                   {lookupState.status === "searching" && (
                     <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                       <Loader2 className="h-3 w-3 animate-spin" /> Looking up…
@@ -206,11 +206,12 @@ export default function NewComplaint() {
                   id="phone"
                   value={form.phone}
                   onChange={set("phone")}
-                  placeholder="+15551234567"
+                  placeholder="+919876543210 or 9876543210"
                   required
                   className="bg-white border-slate-300 focus-visible:ring-slate-900"
                   data-testid="form-phone-input"
                 />
+                <p className="text-xs text-slate-500">Include country code. 10-digit Indian numbers are auto-prefixed with +91.</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
