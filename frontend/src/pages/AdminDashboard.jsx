@@ -56,10 +56,20 @@ export default function AdminDashboard() {
     }
   };
 
+  // Initial + status filter changes
   useEffect(() => {
     fetchAll(statusFilter, q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
+
+  // Real-time debounced search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetchAll(statusFilter, q);
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   const onSearchSubmit = (e) => {
     e.preventDefault();
@@ -100,7 +110,7 @@ export default function AdminDashboard() {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by ID, name, phone, serial..."
+              placeholder="Search ID, name, phone, serial, invoice, product, village, city, district, state, pincode…"
               className="pl-9 bg-white border-slate-300 focus-visible:ring-slate-900"
               data-testid="search-input"
             />

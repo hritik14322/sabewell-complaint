@@ -74,12 +74,19 @@ class Complaint(BaseModel):
     name: str
     address: str
     phone: str
+    village: Optional[str] = ""
+    city: Optional[str] = ""
+    district: Optional[str] = ""
+    state: Optional[str] = ""
+    pincode: Optional[str] = ""
+    invoice_number: Optional[str] = ""
+    product_details: Optional[str] = ""
     product_serial: str
     issue_description: str
     date: str  # ISO date string (YYYY-MM-DD)
     status: StatusType = "Pending"
     status_history: List[StatusHistoryEntry] = Field(default_factory=list)
-    photos: List[dict] = Field(default_factory=list)  # [{id, storage_path, original_filename, content_type, size, uploaded_at}]
+    photos: List[dict] = Field(default_factory=list)
     created_at: str
     updated_at: str
 
@@ -90,7 +97,42 @@ class ComplaintCreate(BaseModel):
     phone: str
     product_serial: str
     issue_description: str
-    date: Optional[str] = None  # YYYY-MM-DD; defaults to today
+    village: Optional[str] = ""
+    city: Optional[str] = ""
+    district: Optional[str] = ""
+    state: Optional[str] = ""
+    pincode: Optional[str] = ""
+    invoice_number: Optional[str] = ""
+    product_details: Optional[str] = ""
+    date: Optional[str] = None
+
+
+class Customer(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    phone: str  # unique key
+    name: str
+    address: Optional[str] = ""
+    village: Optional[str] = ""
+    city: Optional[str] = ""
+    district: Optional[str] = ""
+    state: Optional[str] = ""
+    pincode: Optional[str] = ""
+    created_at: str
+    updated_at: str
+
+
+class CustomerUpsert(BaseModel):
+    name: str
+    address: Optional[str] = ""
+    village: Optional[str] = ""
+    city: Optional[str] = ""
+    district: Optional[str] = ""
+    state: Optional[str] = ""
+    pincode: Optional[str] = ""
+
+
+class CustomerPhoneChange(CustomerUpsert):
+    phone: Optional[str] = None  # new phone if changing
 
 
 class ComplaintStatusUpdate(BaseModel):
@@ -318,11 +360,19 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
     cid = await generate_complaint_id()
     today = body.date or datetime.now(timezone.utc).date().isoformat()
     now = now_iso()
+    phone = body.phone.strip()
     complaint = Complaint(
         complaint_id=cid,
         name=body.name.strip(),
         address=body.address.strip(),
-        phone=body.phone.strip(),
+        phone=phone,
+        village=(body.village or "").strip(),
+        city=(body.city or "").strip(),
+        district=(body.district or "").strip(),
+        state=(body.state or "").strip(),
+        pincode=(body.pincode or "").strip(),
+        invoice_number=(body.invoice_number or "").strip(),
+        product_details=(body.product_details or "").strip(),
         product_serial=body.product_serial.strip(),
         issue_description=body.issue_description.strip(),
         date=today,
@@ -334,7 +384,27 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
     doc = complaint.model_dump()
     await db.complaints.insert_one(doc)
 
-    # Notify customer
+    # Upsert customer profile (one per phone)
+    await db.customers.update_one(
+        {"phone": phone},
+        {
+            "$set": {
+                "phone": phone,
+                "name": complaint.name,
+                "address": complaint.address,
+                "village": complaint.village,
+                "city": complaint.city,
+                "district": complaint.district,
+                "state": complaint.state,
+                "pincode": complaint.pincode,
+                "updated_at": now,
+            },
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True,
+    )
+
+    # Notify customer via SMS (WhatsApp disabled per request)
     track_url = build_tracking_url(cid)
     body_msg = (
         f"Hello {complaint.name}, your complaint has been registered with {BRAND_NAME}.\n"
@@ -342,17 +412,7 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Status: Pending\n"
         f"Track here: {track_url}"
     )
-    send_whatsapp(
-        complaint.phone,
-        body_msg,
-        content_variables={
-            "1": complaint.name,
-            "2": cid,
-            "3": "Pending",
-            "4": track_url,
-        },
-    )
-    send_sms(complaint.phone, body_msg)
+    send_sms(phone, body_msg)
     return complaint
 
 
@@ -366,11 +426,21 @@ async def list_complaints(
     if status_filter and status_filter in ALLOWED_STATUSES:
         query["status"] = status_filter
     if q:
+        rx = {"$regex": q, "$options": "i"}
         query["$or"] = [
-            {"complaint_id": {"$regex": q, "$options": "i"}},
-            {"name": {"$regex": q, "$options": "i"}},
-            {"phone": {"$regex": q, "$options": "i"}},
-            {"product_serial": {"$regex": q, "$options": "i"}},
+            {"complaint_id": rx},
+            {"name": rx},
+            {"phone": rx},
+            {"product_serial": rx},
+            {"invoice_number": rx},
+            {"product_details": rx},
+            {"issue_description": rx},
+            {"address": rx},
+            {"village": rx},
+            {"city": rx},
+            {"district": rx},
+            {"state": rx},
+            {"pincode": rx},
         ]
     cursor = db.complaints.find(query, {"_id": 0}).sort("created_at", -1)
     items = await cursor.to_list(1000)
@@ -416,18 +486,155 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + (f"Note: {body.note}\n" if body.note else "")
         + f"Track here: {track_url}"
     )
-    send_whatsapp(
-        doc["phone"],
-        body_msg,
-        content_variables={
-            "1": doc["name"],
-            "2": cid,
-            "3": body.status,
-            "4": track_url,
-        },
-    )
     send_sms(doc["phone"], body_msg)
     return doc
+
+
+# ---------- Customer endpoints ----------
+def _customer_clean(c: dict) -> dict:
+    """Strip MongoDB internals and ensure all fields present."""
+    keys = ["phone", "name", "address", "village", "city", "district", "state", "pincode", "created_at", "updated_at"]
+    out = {k: c.get(k, "") for k in keys}
+    return out
+
+
+@api_router.get("/customers/by-phone/{phone}")
+async def get_customer_by_phone(phone: str, _: str = Depends(current_admin)):
+    """Auto-lookup customer by phone. Falls back to recent complaint if no customer record yet."""
+    phone = phone.strip()
+    cust = await db.customers.find_one({"phone": phone}, {"_id": 0})
+    if cust:
+        return {"found": True, "customer": _customer_clean(cust)}
+    # Fallback: synthesize from most recent matching complaint
+    complaint = await db.complaints.find_one({"phone": phone}, {"_id": 0}, sort=[("created_at", -1)])
+    if complaint:
+        now = now_iso()
+        synth = {
+            "phone": phone,
+            "name": complaint.get("name", ""),
+            "address": complaint.get("address", ""),
+            "village": complaint.get("village", ""),
+            "city": complaint.get("city", ""),
+            "district": complaint.get("district", ""),
+            "state": complaint.get("state", ""),
+            "pincode": complaint.get("pincode", ""),
+            "created_at": now,
+            "updated_at": now,
+        }
+        # Lazy-create the customer record
+        await db.customers.update_one(
+            {"phone": phone},
+            {"$set": synth, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+        return {"found": True, "customer": synth, "source": "historical"}
+    return {"found": False}
+
+
+@api_router.get("/customers")
+async def list_customers(q: Optional[str] = None, _: str = Depends(current_admin)):
+    query: dict = {}
+    if q:
+        rx = {"$regex": q, "$options": "i"}
+        query["$or"] = [
+            {"phone": rx},
+            {"name": rx},
+            {"address": rx},
+            {"village": rx},
+            {"city": rx},
+            {"district": rx},
+            {"state": rx},
+            {"pincode": rx},
+        ]
+    cursor = db.customers.find(query, {"_id": 0}).sort("updated_at", -1)
+    customers = await cursor.to_list(1000)
+    # Attach complaint counts
+    phones = [c["phone"] for c in customers]
+    counts = {}
+    if phones:
+        pipeline = [
+            {"$match": {"phone": {"$in": phones}}},
+            {"$group": {"_id": "$phone", "n": {"$sum": 1}}},
+        ]
+        async for row in db.complaints.aggregate(pipeline):
+            counts[row["_id"]] = row["n"]
+    out = []
+    for c in customers:
+        cc = _customer_clean(c)
+        cc["complaint_count"] = counts.get(cc["phone"], 0)
+        out.append(cc)
+    return out
+
+
+@api_router.get("/customers/{phone}")
+async def get_customer_with_history(phone: str, _: str = Depends(current_admin)):
+    phone = phone.strip()
+    cust = await db.customers.find_one({"phone": phone}, {"_id": 0})
+    if not cust:
+        # Try lazy-create from complaints
+        complaint = await db.complaints.find_one({"phone": phone}, {"_id": 0}, sort=[("created_at", -1)])
+        if not complaint:
+            raise HTTPException(status_code=404, detail="Customer not found")
+        now = now_iso()
+        cust = {
+            "phone": phone,
+            "name": complaint.get("name", ""),
+            "address": complaint.get("address", ""),
+            "village": complaint.get("village", ""),
+            "city": complaint.get("city", ""),
+            "district": complaint.get("district", ""),
+            "state": complaint.get("state", ""),
+            "pincode": complaint.get("pincode", ""),
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.customers.update_one({"phone": phone}, {"$set": cust, "$setOnInsert": {"created_at": now}}, upsert=True)
+    complaints = await db.complaints.find({"phone": phone}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return {"customer": _customer_clean(cust), "complaints": complaints}
+
+
+@api_router.patch("/customers/{phone}")
+async def update_customer(phone: str, body: CustomerPhoneChange, _: str = Depends(current_admin)):
+    phone = phone.strip()
+    existing = await db.customers.find_one({"phone": phone}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    now = now_iso()
+    update = {
+        "name": body.name.strip(),
+        "address": (body.address or "").strip(),
+        "village": (body.village or "").strip(),
+        "city": (body.city or "").strip(),
+        "district": (body.district or "").strip(),
+        "state": (body.state or "").strip(),
+        "pincode": (body.pincode or "").strip(),
+        "updated_at": now,
+    }
+    new_phone = (body.phone or "").strip()
+    if new_phone and new_phone != phone:
+        clash = await db.customers.find_one({"phone": new_phone}, {"_id": 0})
+        if clash:
+            raise HTTPException(status_code=400, detail="Another customer already uses that phone")
+        update["phone"] = new_phone
+        # Migrate complaints to new phone
+        await db.complaints.update_many({"phone": phone}, {"$set": {"phone": new_phone, "updated_at": now}})
+    await db.customers.update_one({"phone": phone}, {"$set": update})
+    final_phone = new_phone if new_phone and new_phone != phone else phone
+    refreshed = await db.customers.find_one({"phone": final_phone}, {"_id": 0})
+    return _customer_clean(refreshed)
+
+
+@api_router.delete("/customers/{phone}")
+async def delete_customer(phone: str, cascade: bool = False, _: str = Depends(current_admin)):
+    phone = phone.strip()
+    res = await db.customers.delete_one({"phone": phone})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    deleted_complaints = 0
+    if cascade:
+        cr = await db.complaints.delete_many({"phone": phone})
+        deleted_complaints = cr.deleted_count
+    return {"ok": True, "deleted_complaints": deleted_complaints}
 
 
 @api_router.get("/stats")
@@ -538,6 +745,8 @@ async def track(cid: str):
         "name": doc["name"],
         "phone_masked": ("*" * max(0, len(doc["phone"]) - 4)) + doc["phone"][-4:],
         "product_serial": doc["product_serial"],
+        "invoice_number": doc.get("invoice_number", ""),
+        "product_details": doc.get("product_details", ""),
         "issue_description": doc["issue_description"],
         "date": doc["date"],
         "status": doc["status"],
@@ -582,6 +791,16 @@ async def seed_admin():
         init_storage()
     except Exception as e:
         logger.error(f"Storage init at startup failed: {e}")
+
+    # Create indexes for performance
+    try:
+        await db.customers.create_index("phone", unique=True)
+        await db.complaints.create_index("phone")
+        await db.complaints.create_index("complaint_id", unique=True)
+        await db.complaints.create_index([("created_at", -1)])
+        logger.info("Indexes ensured")
+    except Exception as e:
+        logger.warning(f"Index creation: {e}")
 
 
 @app.on_event("shutdown")

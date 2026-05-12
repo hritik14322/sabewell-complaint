@@ -10,6 +10,8 @@ import NewComplaint from "@/pages/NewComplaint";
 import ComplaintDetail from "@/pages/ComplaintDetail";
 import PublicTrack from "@/pages/PublicTrack";
 import PublicTrackLookup from "@/pages/PublicTrackLookup";
+import CustomersList from "@/pages/CustomersList";
+import CustomerDetail from "@/pages/CustomerDetail";
 
 function RequireAuth({ children }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("sw_token") : null;
@@ -47,6 +49,22 @@ export default function App() {
             element={
               <RequireAuth>
                 <ComplaintDetail />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/customers"
+            element={
+              <RequireAuth>
+                <CustomersList />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/customers/:phone"
+            element={
+              <RequireAuth>
+                <CustomerDetail />
               </RequireAuth>
             }
           />

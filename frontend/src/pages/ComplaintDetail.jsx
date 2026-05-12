@@ -57,7 +57,7 @@ export default function ComplaintDetail() {
       });
       setC(data);
       setNote("");
-      toast.success(`Status updated to ${data.status}. Customer notified.`);
+      toast.success(`Status updated to ${data.status}. SMS sent to customer.`);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update status");
     } finally {
@@ -127,12 +127,32 @@ export default function ComplaintDetail() {
               <Field label="Name" value={c.name} testid="detail-name" />
               <Field label="Phone" value={c.phone} testid="detail-phone" mono />
               <Field label="Date" value={c.date} testid="detail-date" />
-              <Field label="Product Serial" value={c.product_serial} testid="detail-serial" mono />
+              <Field label="Pincode" value={c.pincode || "—"} testid="detail-pincode" mono />
+              <Field label="Village" value={c.village || "—"} testid="detail-village" />
+              <Field label="City" value={c.city || "—"} testid="detail-city" />
+              <Field label="District" value={c.district || "—"} testid="detail-district" />
+              <Field label="State" value={c.state || "—"} testid="detail-state" />
               <div className="sm:col-span-2">
-                <Field label="Address" value={c.address} testid="detail-address" />
+                <Field label="Street/Address" value={c.address} testid="detail-address" />
+              </div>
+            </dl>
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <Link to={`/admin/customers/${encodeURIComponent(c.phone)}`} className="text-xs text-slate-600 hover:text-slate-900 underline" data-testid="view-customer-profile-link">
+                View full customer profile →
+              </Link>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-slate-200 shadow-sm">
+            <h2 className="font-heading text-lg font-semibold mb-4">Complaint</h2>
+            <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+              <Field label="Invoice number" value={c.invoice_number || "—"} testid="detail-invoice" mono />
+              <Field label="Product serial" value={c.product_serial} testid="detail-serial" mono />
+              <div className="sm:col-span-2">
+                <Field label="Product details" value={c.product_details || "—"} testid="detail-product" />
               </div>
               <div className="sm:col-span-2">
-                <Field label="Issue Description" value={c.issue_description} testid="detail-issue" multiline />
+                <Field label="Issue description" value={c.issue_description} testid="detail-issue" multiline />
               </div>
             </dl>
           </Card>
@@ -170,7 +190,7 @@ export default function ComplaintDetail() {
         <div className="space-y-6">
           <Card className="p-6 border-slate-200 shadow-sm">
             <h2 className="font-heading text-lg font-semibold">Update status</h2>
-            <p className="text-sm text-slate-600 mt-1">A WhatsApp message will be sent to the customer.</p>
+            <p className="text-sm text-slate-600 mt-1">An SMS will be sent to the customer.</p>
             <div className="mt-4 space-y-3">
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="bg-white border-slate-300" data-testid="status-select">
