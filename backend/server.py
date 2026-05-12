@@ -253,6 +253,44 @@ def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
         return False
 
 
+def send_sms_fast2sms(to_phone: str, body: str) -> tuple[bool, str]:
+    """Send an SMS via Fast2SMS Quick route. Works for any Indian mobile (10 digits)."""
+    if not FAST2SMS_API_KEY:
+        return False, "Fast2SMS not configured"
+    normalized = normalize_phone(to_phone)
+    # Fast2SMS Quick route expects 10-digit Indian numbers without country code
+    if normalized.startswith("+91") and len(normalized) == 13:
+        mobile = normalized[3:]
+    elif normalized.startswith("+") and len(normalized) > 4:
+        mobile = normalized[1:]
+    else:
+        return False, "Fast2SMS Quick route supports Indian numbers only"
+    if len(mobile) != 10 or not mobile.isdigit():
+        return False, f"Invalid Indian mobile: {mobile}"
+    try:
+        resp = requests.get(
+            "https://www.fast2sms.com/dev/bulkV2",
+            params={
+                "authorization": FAST2SMS_API_KEY,
+                "message": body,
+                "language": "english",
+                "route": "q",
+                "numbers": mobile,
+            },
+            timeout=30,
+        )
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if resp.ok and data.get("return"):
+            logger.info(f"Fast2SMS SMS sent to {mobile}: {data}")
+            return True, f"SMS sent to {mobile} (Fast2SMS)"
+        err = data.get("message") or resp.text or f"HTTP {resp.status_code}"
+        logger.warning(f"Fast2SMS SMS failed: {err}")
+        return False, str(err)[:200]
+    except Exception as e:
+        logger.warning(f"Fast2SMS SMS error: {e}")
+        return False, str(e)[:200]
+
+
 def send_whatsapp_fast2sms(to_phone: str, variables: list) -> tuple[bool, str]:
     """Send a WhatsApp template message via Fast2SMS. Returns (success, message)."""
     if not (FAST2SMS_API_KEY and FAST2SMS_WHATSAPP_MESSAGE_ID):
@@ -492,6 +530,13 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Track here: {track_url}"
     )
     sms_ok, sms_msg = send_sms(phone, body_msg)
+    if not sms_ok:
+        f2_ok, f2_msg = send_sms_fast2sms(phone, body_msg)
+        if f2_ok:
+            sms_ok = True
+            sms_msg = f2_msg
+        else:
+            sms_msg = f"Twilio: {sms_msg} | Fast2SMS: {f2_msg}"
     wa_ok, wa_msg = send_whatsapp_fast2sms(
         phone,
         [complaint.name, cid, "Pending", track_url],
@@ -576,6 +621,13 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + f"Track here: {track_url}"
     )
     send_sms_ok, send_sms_msg = send_sms(doc["phone"], body_msg)
+    if not send_sms_ok:
+        f2_ok, f2_msg = send_sms_fast2sms(doc["phone"], body_msg)
+        if f2_ok:
+            send_sms_ok = True
+            send_sms_msg = f2_msg
+        else:
+            send_sms_msg = f"Twilio: {send_sms_msg} | Fast2SMS: {f2_msg}"
     wa_ok, wa_msg = send_whatsapp_fast2sms(
         doc["phone"],
         [doc["name"], cid, body.status, track_url],
