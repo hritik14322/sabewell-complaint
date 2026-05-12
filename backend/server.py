@@ -565,8 +565,74 @@ async def get_customer_by_phone(phone: str, _: str = Depends(current_admin)):
     return {"found": False}
 
 
+@api_router.post("/customers/_backfill")
+async def backfill_customers(_: str = Depends(current_admin)):
+    """Reconcile any complaint phones that don't have a customer record."""
+    existing_phones = set()
+    async for c in db.customers.find({}, {"_id": 0, "phone": 1}):
+        existing_phones.add(c["phone"])
+    seen = set()
+    backfilled = 0
+    async for cp in db.complaints.find({}, {"_id": 0}).sort("created_at", -1):
+        phone = (cp.get("phone") or "").strip()
+        if not phone or phone in seen or phone in existing_phones:
+            continue
+        seen.add(phone)
+        now = now_iso()
+        await db.customers.update_one(
+            {"phone": phone},
+            {
+                "$set": {
+                    "phone": phone,
+                    "name": cp.get("name", ""),
+                    "address": cp.get("address", ""),
+                    "village": cp.get("village", ""),
+                    "city": cp.get("city", ""),
+                    "district": cp.get("district", ""),
+                    "state": cp.get("state", ""),
+                    "pincode": cp.get("pincode", ""),
+                    "updated_at": cp.get("updated_at", now),
+                },
+                "$setOnInsert": {"created_at": cp.get("created_at", now)},
+            },
+            upsert=True,
+        )
+        backfilled += 1
+    return {"backfilled": backfilled}
+
+
 @api_router.get("/customers")
 async def list_customers(q: Optional[str] = None, _: str = Depends(current_admin)):
+    # Lazy reconcile: ensure every complaint phone has a customer record
+    existing_phones = set()
+    async for c in db.customers.find({}, {"_id": 0, "phone": 1}):
+        existing_phones.add(c["phone"])
+    seen = set()
+    async for cp in db.complaints.find({}, {"_id": 0}).sort("created_at", -1):
+        phone = (cp.get("phone") or "").strip()
+        if not phone or phone in seen or phone in existing_phones:
+            continue
+        seen.add(phone)
+        now = now_iso()
+        await db.customers.update_one(
+            {"phone": phone},
+            {
+                "$set": {
+                    "phone": phone,
+                    "name": cp.get("name", ""),
+                    "address": cp.get("address", ""),
+                    "village": cp.get("village", ""),
+                    "city": cp.get("city", ""),
+                    "district": cp.get("district", ""),
+                    "state": cp.get("state", ""),
+                    "pincode": cp.get("pincode", ""),
+                    "updated_at": cp.get("updated_at", now),
+                },
+                "$setOnInsert": {"created_at": cp.get("created_at", now)},
+            },
+            upsert=True,
+        )
+
     query: dict = {}
     if q:
         rx = {"$regex": q, "$options": "i"}
@@ -835,6 +901,43 @@ async def seed_admin():
         logger.info("Indexes ensured")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
+
+    # Backfill: for every complaint phone without a customer record, create one
+    try:
+        existing_phones = set()
+        async for c in db.customers.find({}, {"_id": 0, "phone": 1}):
+            existing_phones.add(c["phone"])
+        seen = set()
+        backfilled = 0
+        async for cp in db.complaints.find({}, {"_id": 0}).sort("created_at", -1):
+            phone = (cp.get("phone") or "").strip()
+            if not phone or phone in seen or phone in existing_phones:
+                continue
+            seen.add(phone)
+            now = now_iso()
+            await db.customers.update_one(
+                {"phone": phone},
+                {
+                    "$set": {
+                        "phone": phone,
+                        "name": cp.get("name", ""),
+                        "address": cp.get("address", ""),
+                        "village": cp.get("village", ""),
+                        "city": cp.get("city", ""),
+                        "district": cp.get("district", ""),
+                        "state": cp.get("state", ""),
+                        "pincode": cp.get("pincode", ""),
+                        "updated_at": cp.get("updated_at", now),
+                    },
+                    "$setOnInsert": {"created_at": cp.get("created_at", now)},
+                },
+                upsert=True,
+            )
+            backfilled += 1
+        if backfilled:
+            logger.info(f"Backfilled {backfilled} customer record(s) from existing complaints")
+    except Exception as e:
+        logger.warning(f"Customer backfill failed: {e}")
 
 
 @app.on_event("shutdown")
