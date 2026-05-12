@@ -59,10 +59,22 @@ export default function ComplaintDetail() {
       setC(data);
       setNote("");
       const sms = data.sms_status || { ok: false, message: "" };
-      if (sms.ok) {
+      const wa = data.whatsapp_status || { ok: false, message: "" };
+      if (sms.ok && wa.ok) {
+        toast.success(`Status set to ${data.status}. SMS + WhatsApp sent.`);
+      } else if (sms.ok) {
         toast.success(`Status set to ${data.status}. SMS sent.`);
+        if (wa.message && wa.message !== "Fast2SMS not configured") {
+          toast.error(`WhatsApp failed: ${wa.message}`);
+        }
+      } else if (wa.ok) {
+        toast.success(`Status set to ${data.status}. WhatsApp sent.`);
+        toast.error(`SMS failed: ${sms.message || "see logs"}`);
       } else {
         toast.error(`Status updated, but SMS failed: ${sms.message || "see logs"}`);
+        if (wa.message && wa.message !== "Fast2SMS not configured") {
+          toast.error(`WhatsApp failed: ${wa.message}`);
+        }
       }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update status");

@@ -39,6 +39,10 @@ TWILIO_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')
 TWILIO_CONTENT_SID = os.environ.get('TWILIO_CONTENT_SID', '')
 TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM', '')
 
+# Fast2SMS WhatsApp
+FAST2SMS_API_KEY = os.environ.get('FAST2SMS_API_KEY', '')
+FAST2SMS_WHATSAPP_MESSAGE_ID = os.environ.get('FAST2SMS_WHATSAPP_MESSAGE_ID', '')
+
 # Emergent Object Storage
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
@@ -249,6 +253,45 @@ def send_whatsapp(to_phone: str, body: str, content_variables=None) -> bool:
         return False
 
 
+def send_whatsapp_fast2sms(to_phone: str, variables: list) -> tuple[bool, str]:
+    """Send a WhatsApp template message via Fast2SMS. Returns (success, message)."""
+    if not (FAST2SMS_API_KEY and FAST2SMS_WHATSAPP_MESSAGE_ID):
+        logger.info("Fast2SMS WhatsApp not configured (missing API key or template message_id)")
+        return False, "Fast2SMS not configured"
+    # Fast2SMS expects the recipient as 10-digit Indian mobile (no country code) or full international
+    normalized = normalize_phone(to_phone)
+    # Strip the +91 prefix for Fast2SMS (it expects 10-digit for Indian numbers)
+    mobile = normalized
+    if mobile.startswith("+91") and len(mobile) == 13:
+        mobile = mobile[3:]
+    elif mobile.startswith("+"):
+        mobile = mobile[1:]
+    try:
+        resp = requests.post(
+            "https://www.fast2sms.com/dev/whatsapp/send",
+            headers={
+                "authorization": FAST2SMS_API_KEY,
+                "content-type": "application/json",
+            },
+            json={
+                "message_id": FAST2SMS_WHATSAPP_MESSAGE_ID,
+                "mobile_number": mobile,
+                "variable_values": [str(v) for v in variables],
+            },
+            timeout=30,
+        )
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if resp.ok and data.get("success"):
+            logger.info(f"Fast2SMS WhatsApp sent to {mobile}: {data}")
+            return True, f"WhatsApp sent to {mobile}"
+        err = data.get("message") or resp.text or f"HTTP {resp.status_code}"
+        logger.warning(f"Fast2SMS WhatsApp failed: {err}")
+        return False, str(err)[:200]
+    except Exception as e:
+        logger.warning(f"Fast2SMS WhatsApp error: {e}")
+        return False, str(e)[:200]
+
+
 def normalize_phone(raw: str) -> str:
     """Normalize a phone to E.164. Handles common Indian patterns."""
     if not raw:
@@ -449,8 +492,13 @@ async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin
         f"Track here: {track_url}"
     )
     sms_ok, sms_msg = send_sms(phone, body_msg)
+    wa_ok, wa_msg = send_whatsapp_fast2sms(
+        phone,
+        [complaint.name, cid, "Pending", track_url],
+    )
     result = complaint.model_dump()
     result["sms_status"] = {"ok": sms_ok, "message": sms_msg}
+    result["whatsapp_status"] = {"ok": wa_ok, "message": wa_msg}
     return result
 
 
@@ -528,7 +576,12 @@ async def update_status(cid: str, body: ComplaintStatusUpdate, _: str = Depends(
         + f"Track here: {track_url}"
     )
     send_sms_ok, send_sms_msg = send_sms(doc["phone"], body_msg)
+    wa_ok, wa_msg = send_whatsapp_fast2sms(
+        doc["phone"],
+        [doc["name"], cid, body.status, track_url],
+    )
     doc["sms_status"] = {"ok": send_sms_ok, "message": send_sms_msg}
+    doc["whatsapp_status"] = {"ok": wa_ok, "message": wa_msg}
     return doc
 
 

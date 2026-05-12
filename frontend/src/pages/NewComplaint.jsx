@@ -206,12 +206,12 @@ export default function NewComplaint() {
                   id="phone"
                   value={form.phone}
                   onChange={set("phone")}
-                  placeholder="+919876543210 or 9876543210"
+                  placeholder="+9198765XXXXX or 98765XXXXX"
                   required
                   className="bg-white border-slate-300 focus-visible:ring-slate-900"
                   data-testid="form-phone-input"
                 />
-                <p className="text-xs text-slate-500">Include country code. 10-digit Indian numbers are auto-prefixed with +91.</p>
+            
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
@@ -317,6 +317,7 @@ export default function NewComplaint() {
               <li>Customer profile is saved / updated.</li>
               <li>Initial status set to <span className="status-pending px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Pending</span>.</li>
               <li>SMS notification sent to customer with tracking link.</li>
+              <li>WhatsApp template message sent via Fast2SMS.</li>
               {photos.length > 0 && (
                 <li>{photos.length} photo{photos.length > 1 ? "s" : ""} attached.</li>
               )}
