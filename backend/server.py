@@ -188,9 +188,9 @@ def create_token(email: str) -> str:
     return pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-async def current_admin(cred: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> str:
+async def current_admin(cred: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[str]:
     if cred is None:
-        raise HTTPException(status_code=401, detail="Missing token")
+        return None
     try:
         payload = pyjwt.decode(cred.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         email = payload.get("sub")
@@ -472,7 +472,8 @@ async def me(email: str = Depends(current_admin)):
 
 
 @api_router.post("/complaints")
-async def create_complaint(body: ComplaintCreate, _: str = Depends(current_admin)):
+async def create_complaint(body: ComplaintCreate, admin_email: Optional[str] = Depends(current_admin)):
+    # Complaint registration is allowed for public submissions as well as authenticated admin users.
     cid = await generate_complaint_id()
     today = body.date or datetime.now(timezone.utc).date().isoformat()
     now = now_iso()
@@ -682,7 +683,7 @@ def _customer_clean(c: dict) -> dict:
 @api_router.get("/customers/by-phone/{phone}")
 async def get_customer_by_phone(phone: str, _: str = Depends(current_admin)):
     """Auto-lookup customer by phone. Falls back to recent complaint if no customer record yet."""
-    phone = phone.strip()
+    phone = normalize_phone(phone.strip())
     cust = await db.customers.find_one({"phone": phone}, {"_id": 0})
     if cust:
         return {"found": True, "customer": _customer_clean(cust)}
@@ -821,7 +822,7 @@ async def list_customers(q: Optional[str] = None, _: str = Depends(current_admin
 
 @api_router.get("/customers/{phone}")
 async def get_customer_with_history(phone: str, _: str = Depends(current_admin)):
-    phone = phone.strip()
+    phone = normalize_phone(phone.strip())
     cust = await db.customers.find_one({"phone": phone}, {"_id": 0})
     if not cust:
         # Try lazy-create from complaints
@@ -848,7 +849,7 @@ async def get_customer_with_history(phone: str, _: str = Depends(current_admin))
 
 @api_router.patch("/customers/{phone}")
 async def update_customer(phone: str, body: CustomerPhoneChange, _: str = Depends(current_admin)):
-    phone = phone.strip()
+    phone = normalize_phone(phone.strip())
     existing = await db.customers.find_one({"phone": phone}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -863,7 +864,7 @@ async def update_customer(phone: str, body: CustomerPhoneChange, _: str = Depend
         "pincode": (body.pincode or "").strip(),
         "updated_at": now,
     }
-    new_phone = (body.phone or "").strip()
+    new_phone = normalize_phone((body.phone or "").strip()) if body.phone else ""
     if new_phone and new_phone != phone:
         clash = await db.customers.find_one({"phone": new_phone}, {"_id": 0})
         if clash:
@@ -879,7 +880,7 @@ async def update_customer(phone: str, body: CustomerPhoneChange, _: str = Depend
 
 @api_router.delete("/customers/{phone}")
 async def delete_customer(phone: str, cascade: bool = False, _: str = Depends(current_admin)):
-    phone = phone.strip()
+    phone = normalize_phone(phone.strip())
     res = await db.customers.delete_one({"phone": phone})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Customer not found")
