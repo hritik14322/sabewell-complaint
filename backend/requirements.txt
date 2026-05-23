@@ -8,6 +8,7 @@ python-dotenv==1.2.2
 pymongo==4.5.0
 motor==3.3.1
 dnspython==2.8.0
+certifi
 
 # Cryptography & Auth
 bcrypt==4.1.3
