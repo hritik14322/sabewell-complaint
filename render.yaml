@@ -27,7 +27,8 @@ services:
   # ----------------------------------------------------
   # 💻 React Frontend Static Site
   # ----------------------------------------------------
-  - type: static
+  - type: web
+    runtime: static
     name: sabewell-frontend
     rootDir: frontend
     buildCommand: "npm install && npm run build"
