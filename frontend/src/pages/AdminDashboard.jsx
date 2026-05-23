@@ -95,9 +95,13 @@ export default function AdminDashboard() {
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">{t.label}</div>
               <span className={`w-2 h-2 rounded-full ${t.dot}`} />
             </div>
-            <div className={`font-heading text-3xl sm:text-4xl font-bold mt-3 tracking-tight ${t.color}`} data-testid={`stat-${t.key}`}>
-              {stats[t.key] ?? 0}
-            </div>
+            {loading ? (
+              <div className="h-9 w-16 bg-slate-100 animate-pulse rounded mt-3" />
+            ) : (
+              <div className={`font-heading text-3xl sm:text-4xl font-bold mt-3 tracking-tight ${t.color}`} data-testid={`stat-${t.key}`}>
+                {stats[t.key] ?? 0}
+              </div>
+            )}
           </Card>
         ))}
       </div>
@@ -148,7 +152,24 @@ export default function AdminDashboard() {
           </TableHeader>
           <TableBody data-testid="complaints-table-body">
             {loading ? (
-              <TableRow><TableCell colSpan={7} className="py-12 text-center text-slate-500">Loading...</TableCell></TableRow>
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i} className="border-b border-slate-100 hover:bg-transparent">
+                  <TableCell className="py-4"><div className="h-5 w-24 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4">
+                    <div className="h-5 w-36 bg-slate-100 animate-pulse rounded mb-2" />
+                    <div className="h-4 w-48 bg-slate-100 animate-pulse rounded" />
+                  </TableCell>
+                  <TableCell className="py-4 hidden md:table-cell"><div className="h-5 w-28 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4 hidden lg:table-cell"><div className="h-5 w-28 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4 hidden lg:table-cell"><div className="h-5 w-20 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4">
+                    <div className="h-6 w-20 bg-slate-100 animate-pulse rounded-full" />
+                  </TableCell>
+                  <TableCell className="py-4 text-right">
+                    <div className="h-4 w-4 bg-slate-100 animate-pulse rounded ml-auto" />
+                  </TableCell>
+                </TableRow>
+              ))
             ) : items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-16 text-center">

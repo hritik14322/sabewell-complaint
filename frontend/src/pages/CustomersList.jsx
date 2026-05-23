@@ -57,7 +57,16 @@ export default function CustomersList() {
           </TableHeader>
           <TableBody data-testid="customers-table-body">
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="py-12 text-center text-slate-500">Loading…</TableCell></TableRow>
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i} className="border-b border-slate-100 hover:bg-transparent">
+                  <TableCell className="py-4"><div className="h-5 w-32 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4"><div className="h-5 w-24 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4 hidden md:table-cell"><div className="h-5 w-56 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4 hidden lg:table-cell"><div className="h-5 w-32 bg-slate-100 animate-pulse rounded" /></TableCell>
+                  <TableCell className="py-4"><div className="h-6 w-8 bg-slate-100 animate-pulse rounded-full" /></TableCell>
+                  <TableCell className="py-4 text-right"><div className="h-4 w-4 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                </TableRow>
+              ))
             ) : items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-16 text-center">
