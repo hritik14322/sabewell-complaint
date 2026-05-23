@@ -1,0 +1,37 @@
+services:
+  # ----------------------------------------------------
+  # 🚀 FastAPI Backend Web Service
+  # ----------------------------------------------------
+  - type: web
+    name: sabewell-backend
+    env: python
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: MONGO_URL
+        sync: false # Set this to your MongoDB Atlas connection string!
+      - key: DB_NAME
+        value: complaint_db
+      - key: JWT_SECRET
+        generateValue: true # Generates a random secure JWT secret key automatically!
+      - key: ADMIN_EMAIL
+        value: admin@company.com
+      - key: ADMIN_PASSWORD
+        value: Admin@123
+      - key: BRAND_NAME
+        value: sabewell
+      - key: PUBLIC_APP_URL
+        sync: false # Set this to your frontend static site URL after it's deployed!
+
+  # ----------------------------------------------------
+  # 💻 React Frontend Static Site
+  # ----------------------------------------------------
+  - type: static
+    name: sabewell-frontend
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        sync: false # Set this to your deployed backend URL (e.g. https://sabewell-backend.onrender.com)
