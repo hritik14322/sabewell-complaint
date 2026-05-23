@@ -36,3 +36,5 @@ services:
     envVars:
       - key: REACT_APP_BACKEND_URL
         sync: false # Set this to your deployed backend URL (e.g. https://sabewell-backend.onrender.com)
+      - key: CI
+        value: "false"
