@@ -31,7 +31,7 @@ services:
     runtime: static
     name: sabewell-frontend
     rootDir: frontend
-    buildCommand: "npm install && npm run build"
+    buildCommand: "npm install --legacy-peer-deps && npm run build"
     staticPublishPath: build
     envVars:
       - key: REACT_APP_BACKEND_URL
