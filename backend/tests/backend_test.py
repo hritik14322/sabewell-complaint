@@ -65,7 +65,7 @@ def created_complaint(auth):
 
 def test_create_complaint(created_complaint):
     c = created_complaint
-    assert re.match(r"^CMP-\d{4}-\d{4}$", c["complaint_id"]), c["complaint_id"]
+    assert re.match(r"^\d{9,10}$", c["complaint_id"]), c["complaint_id"]
     assert c["status"] == "Pending"
     assert len(c["status_history"]) == 1
     assert c["status_history"][0]["status"] == "Pending"
