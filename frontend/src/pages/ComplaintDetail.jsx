@@ -325,7 +325,7 @@ export default function ComplaintDetail() {
             <div className="mt-3 flex gap-2">
               <div
                 onClick={copyLink}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-700 overflow-x-auto whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors select-all"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-700 overflow-x-auto whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors select-none"
                 title="Click to copy"
                 data-testid="tracking-link-input"
               >
