@@ -94,7 +94,7 @@ export default function ComplaintDetail() {
         copied = false;
       }
     }
-    
+
     // Legacy fallback method for mobile webviews
     if (!copied) {
       const textarea = document.createElement("textarea");
@@ -233,7 +233,7 @@ export default function ComplaintDetail() {
             </dl>
             <div className="mt-3 pt-3 border-t border-slate-100">
               <Link to={`/admin/customers/${encodeURIComponent(c.phone)}`} className="text-xs text-slate-600 hover:text-slate-900 underline" data-testid="view-customer-profile-link">
-                View full customer profile →
+                →
               </Link>
             </div>
           </Card>
