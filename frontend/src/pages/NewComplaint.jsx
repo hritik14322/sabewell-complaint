@@ -211,7 +211,7 @@ export default function NewComplaint() {
                   className="bg-white border-slate-300 focus-visible:ring-slate-900"
                   data-testid="form-phone-input"
                 />
-            
+
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
@@ -253,7 +253,19 @@ export default function NewComplaint() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="serial">Product serial number</Label>
-                <Input id="serial" value={form.product_serial} onChange={set("product_serial")} required className="bg-white border-slate-300 focus-visible:ring-slate-900 font-mono" data-testid="form-serial-input" />
+                <Input
+                  id="serial"
+                  value={form.product_serial}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      product_serial: e.target.value.toUpperCase(),
+                    })
+                  }
+                  required
+                  className="bg-white border-slate-300 focus-visible:ring-slate-900 font-mono uppercase"
+                  data-testid="form-serial-input"
+                />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="product">Product details</Label>

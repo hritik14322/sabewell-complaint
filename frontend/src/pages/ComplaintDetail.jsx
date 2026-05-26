@@ -85,11 +85,38 @@ export default function ComplaintDetail() {
 
   const trackUrl = `${window.location.origin}/track/${cid}`;
   const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(trackUrl);
-      toast.success("Tracking link copied");
-    } catch {
-      toast.error("Copy failed");
+    let copied = false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(trackUrl);
+        copied = true;
+      } catch (e) {
+        copied = false;
+      }
+    }
+    
+    // Legacy fallback method for mobile webviews
+    if (!copied) {
+      const textarea = document.createElement("textarea");
+      textarea.value = trackUrl;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        copied = document.execCommand("copy");
+      } catch (err) {
+        copied = false;
+      }
+      document.body.removeChild(textarea);
+    }
+
+    if (copied) {
+      toast.success("Tracking link copied to clipboard");
+    } else {
+      toast.error("Failed to copy link. Please manually copy the URL.");
     }
   };
 
@@ -296,12 +323,14 @@ export default function ComplaintDetail() {
             </h2>
             <p className="text-sm text-slate-600 mt-1">Share this link with the customer.</p>
             <div className="mt-3 flex gap-2">
-              <input
-                readOnly
-                value={trackUrl}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-700 outline-none"
+              <div
+                onClick={copyLink}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-700 overflow-x-auto whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors select-all"
+                title="Click to copy"
                 data-testid="tracking-link-input"
-              />
+              >
+                {trackUrl}
+              </div>
               <Button onClick={copyLink} variant="outline" size="sm" className="border-slate-200 hover:border-slate-400" data-testid="copy-tracking-link-btn">
                 <Copy className="h-4 w-4" />
               </Button>
