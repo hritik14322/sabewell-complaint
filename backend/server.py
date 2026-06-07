@@ -459,6 +459,13 @@ async def root():
     return {"service": f"{BRAND_NAME} complaint tracker", "status": "ok"}
 
 
+@api_router.get("/ping")
+async def ping():
+    """Lightweight health-check endpoint. Used by the frontend to pre-warm the
+    server on page load so there's no cold-start delay when the user logs in."""
+    return {"pong": True}
+
+
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginInput):
     admin = await db.admins.find_one({"email": payload.email.lower()}, {"_id": 0})
