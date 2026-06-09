@@ -58,29 +58,37 @@ export default function ComplaintDetail() {
       });
       setC(data);
       setNote("");
+      
       const sms = data.sms_status || { ok: false, message: "" };
-      const wa = data.whatsapp_status || { ok: false, message: "" };
-      if (sms.ok && wa.ok) {
-        toast.success(`Status set to ${data.status}. SMS + WhatsApp sent.`);
-      } else if (sms.ok) {
-        toast.success(`Status set to ${data.status}. SMS sent.`);
-        if (wa.message && wa.message !== "Fast2SMS not configured") {
-          toast.error(`WhatsApp failed: ${wa.message}`);
-        }
-      } else if (wa.ok) {
-        toast.success(`Status set to ${data.status}. WhatsApp sent.`);
-        toast.error(`SMS failed: ${sms.message || "see logs"}`);
+      if (sms.ok) {
+        toast.success(`Status updated to ${data.status}. SMS sent.`);
       } else {
-        toast.error(`Status updated, but SMS failed: ${sms.message || "see logs"}`);
-        if (wa.message && wa.message !== "Fast2SMS not configured") {
-          toast.error(`WhatsApp failed: ${wa.message}`);
-        }
+        toast.success(`Status updated to ${data.status}.`);
       }
+      toast.info("Click 'Send via WhatsApp (Free)' in the sidebar to notify the customer.", { duration: 6000 });
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update status");
     } finally {
       setSaving(false);
     }
+  };
+
+  const getWhatsAppMessage = () => {
+    if (!c) return "";
+    const trackUrl = `${window.location.origin}/track/${c.complaint_id}`;
+    return `Hi ${c.name}, update on your complaint with ${c.brand_name || "Sabewell"}.\n\n*Complaint ID:* ${c.complaint_id}\n*Status:* ${c.status}\n\nTrack here: ${trackUrl}`;
+  };
+
+  const sendFreeWhatsApp = () => {
+    if (!c) return;
+    const cleanPhone = c.phone.replace(/[^0-9+]/g, ""); // Keep only digits and '+'
+    let phoneNum = cleanPhone;
+    if (phoneNum.startsWith("+")) {
+      phoneNum = phoneNum.substring(1);
+    }
+    const text = encodeURIComponent(getWhatsAppMessage());
+    const url = `https://api.whatsapp.com/send?phone=${phoneNum}&text=${text}`;
+    window.open(url, "_blank");
   };
 
   const trackUrl = `${window.location.origin}/track/${cid}`;
@@ -285,7 +293,7 @@ export default function ComplaintDetail() {
         <div className="space-y-6">
           <Card className="p-6 border-slate-200 shadow-sm">
             <h2 className="font-heading text-lg font-semibold">Update status</h2>
-            <p className="text-sm text-slate-600 mt-1">An SMS will be sent to the customer.</p>
+            <p className="text-sm text-slate-600 mt-1">Update the complaint status. You can notify the customer via WhatsApp for free below.</p>
             <div className="mt-4 space-y-3">
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="bg-white border-slate-300" data-testid="status-select">
@@ -335,6 +343,13 @@ export default function ComplaintDetail() {
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
+            <Button
+              onClick={sendFreeWhatsApp}
+              className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+              data-testid="send-whatsapp-btn"
+            >
+              <MessageCircle className="h-4 w-4" /> Send via WhatsApp (Free)
+            </Button>
             <Link
               to={`/track/${c.complaint_id}`}
               target="_blank"

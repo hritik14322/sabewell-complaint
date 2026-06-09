@@ -328,8 +328,8 @@ export default function NewComplaint() {
               <li>Unique Complaint ID is generated.</li>
               <li>Customer profile is saved / updated.</li>
               <li>Initial status set to <span className="status-pending px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Pending</span>.</li>
-              <li>SMS notification sent to customer with tracking link.</li>
-              <li>WhatsApp template message sent via Fast2SMS.</li>
+              <li>SMS notification sent to customer (if configured).</li>
+              <li>Option to share details on WhatsApp for free.</li>
               {photos.length > 0 && (
                 <li>{photos.length} photo{photos.length > 1 ? "s" : ""} attached.</li>
               )}
