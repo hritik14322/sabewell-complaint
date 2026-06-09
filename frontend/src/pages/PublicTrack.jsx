@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, ClipboardList, CheckCircle2, Loader2, Clock, MessageCircle, Camera } from "lucide-react";
 import { StatusPill, formatDateTime, formatDate } from "@/lib/complaint";
 import Logo from "@/components/Logo";
 import PhotoGallery from "@/components/PhotoGallery";
+import api from "@/lib/api";
+import DemoToggle from "@/components/DemoToggle";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -39,7 +40,7 @@ export default function PublicTrack() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await axios.get(`${API}/track/${encodeURIComponent(cid)}`);
+        const res = await api.get(`/track/${encodeURIComponent(cid)}`);
         if (!cancelled) setData(res.data);
       } catch (err) {
         if (!cancelled) setError(err?.response?.data?.detail || "Complaint not found");
@@ -57,9 +58,12 @@ export default function PublicTrack() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           <Logo to="/" size="md" testid="track-brand-logo" />
-          <Link to="/track" className="text-sm text-slate-600 hover:text-slate-900" data-testid="track-other-link">
-            <ArrowLeft className="h-4 w-4 inline mr-1" /> Track another
-          </Link>
+          <div className="flex items-center gap-3">
+            <DemoToggle />
+            <Link to="/track" className="text-sm text-slate-600 hover:text-slate-900" data-testid="track-other-link">
+              <ArrowLeft className="h-4 w-4 inline mr-1" /> Track another
+            </Link>
+          </div>
         </div>
       </header>
 

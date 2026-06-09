@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Search, ArrowLeft, ClipboardList } from "lucide-react";
 import Logo from "@/components/Logo";
+import DemoToggle from "@/components/DemoToggle";
 
 export default function PublicTrackLookup() {
   const navigate = useNavigate();
@@ -22,9 +23,12 @@ export default function PublicTrackLookup() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           <Logo to="/" size="md" testid="lookup-brand-logo" />
-          <Link to="/" className="text-sm text-slate-600 hover:text-slate-900" data-testid="lookup-back-link">
-            <ArrowLeft className="h-4 w-4 inline mr-1" /> Back
-          </Link>
+          <div className="flex items-center gap-3">
+            <DemoToggle />
+            <Link to="/" className="text-sm text-slate-600 hover:text-slate-900" data-testid="lookup-back-link">
+              <ArrowLeft className="h-4 w-4 inline mr-1" /> Back
+            </Link>
+          </div>
         </div>
       </header>
 

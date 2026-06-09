@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ClipboardList, ArrowLeft, Wifi, WifiOff, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import Logo from "@/components/Logo";
+import DemoToggle from "@/components/DemoToggle";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -68,6 +69,9 @@ export default function Login() {
         <Link to="/" className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900" data-testid="login-back-home">
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
         </Link>
+      </div>
+      <div className="absolute top-6 right-6">
+        <DemoToggle />
       </div>
       <Card className="w-full max-w-md p-8 border-slate-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6">

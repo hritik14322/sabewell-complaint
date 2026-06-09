@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, ShieldCheck, MessageCircle, Search } from "lucide-react";
 import Logo from "@/components/Logo";
+import DemoToggle from "@/components/DemoToggle";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
           <Logo to="/" size="md" testid="landing-brand-logo" />
           <div className="flex items-center gap-3">
+            <DemoToggle />
             <Link to="/track" data-testid="header-track-link" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Track complaint</Link>
             <Link to="/login" data-testid="header-admin-login-link">
               <Button variant="outline" className="border-slate-200 hover:border-slate-400" size="sm">Admin login</Button>

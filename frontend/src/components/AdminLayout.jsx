@@ -3,6 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import { LogOut, Users, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
+import DemoToggle from "@/components/DemoToggle";
 
 export default function AdminLayout({ children, title, action }) {
   const email = typeof window !== "undefined" ? localStorage.getItem("sw_email") : "";
@@ -43,6 +45,8 @@ export default function AdminLayout({ children, title, action }) {
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-600 hidden lg:inline" data-testid="admin-email">{email}</span>
+            <DemoToggle />
+            <ThemeToggle />
             <Button
               variant="outline"
               size="sm"
