@@ -1039,7 +1039,10 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def seed_admin():
-    existing = await db.admins.find_one({"email": ADMIN_EMAIL.lower()}, {"_id": 0})
+    # Remove any old admin accounts to enforce the configured credentials
+    await db.admins.delete_many({"email": {"$ne": ADMIN_EMAIL.lower()}})
+    
+    existing = await db.admins.find_one({"email": ADMIN_EMAIL.lower()})
     if not existing:
         await db.admins.insert_one({
             "email": ADMIN_EMAIL.lower(),
@@ -1048,7 +1051,12 @@ async def seed_admin():
         })
         logger.info(f"Seeded admin: {ADMIN_EMAIL}")
     else:
-        logger.info(f"Admin already exists: {ADMIN_EMAIL}")
+        # Also update password in case it was changed in .env / render.yaml
+        await db.admins.update_one(
+            {"email": ADMIN_EMAIL.lower()},
+            {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}}
+        )
+        logger.info(f"Admin password updated: {ADMIN_EMAIL}")
     # Initialize object storage
     try:
         init_storage()
