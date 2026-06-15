@@ -1,8 +1,9 @@
 {
-  "name": "sabewell-frontend",
+  "name": "sabewell",
   "version": "1.0.0",
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
-    "start": "cd frontend && npm start"
+    "start": "cd backend-node && node server.js",
+    "install-all": "cd frontend && npm install && cd ../backend-node && npm install"
   }
 }

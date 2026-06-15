@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const { MongoClient, ReturnDocument } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -1064,6 +1065,15 @@ async function main() {
 
   // Mount API router
   app.use("/api", router);
+
+  // Serve React frontend static build
+  const frontendBuild = path.join(__dirname, "..", "frontend", "build");
+  app.use(express.static(frontendBuild));
+
+  // Catch-all: send index.html for all non-API routes (React Router)
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendBuild, "index.html"));
+  });
 
   app.listen(PORT, () => {
     console.log(`Sabewell backend running on port ${PORT}`);
