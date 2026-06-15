@@ -16,7 +16,7 @@ export default function Logo({ to = "/", className = "", size = "md", testid = "
   const inner = (
     <img
       data-testid={testid}
-      src="/brand/logo.png"
+      src="/brand/sabewell-logo.png"
       alt="Sabewell"
       className={`${h} w-auto object-contain select-none ${className}`}
       draggable={false}
