@@ -558,6 +558,17 @@ async def create_complaint(body: ComplaintCreate, admin_email: Optional[str] = D
     return result
 
 
+@api_router.get("/complaints/check-serial/{serial}")
+async def check_serial(serial: str):
+    import re
+    serial_clean = serial.strip()
+    if not serial_clean:
+        return {"exists": False}
+    escaped_serial = re.escape(serial_clean)
+    exists = await db.complaints.find_one({"product_serial": {"$regex": f"^{escaped_serial}$", "$options": "i"}})
+    return {"exists": exists is not None}
+
+
 # (Status update notification also returns SMS status — see update_status below)
 
 

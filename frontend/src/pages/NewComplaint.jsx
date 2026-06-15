@@ -94,6 +94,40 @@ export default function NewComplaint() {
     };
   }, [form.phone]);
 
+  // Debounced product serial duplicate check
+  const [serialExists, setSerialExists] = useState(false);
+  const [checkingSerial, setCheckingSerial] = useState(false);
+  const serialTimerRef = useRef(null);
+  const lastCheckedSerialRef = useRef("");
+
+  useEffect(() => {
+    const serial = (form.product_serial || "").trim();
+    if (serialTimerRef.current) clearTimeout(serialTimerRef.current);
+    if (!serial) {
+      setSerialExists(false);
+      setCheckingSerial(false);
+      return;
+    }
+    if (serial === lastCheckedSerialRef.current) return;
+
+    setCheckingSerial(true);
+    serialTimerRef.current = setTimeout(async () => {
+      try {
+        lastCheckedSerialRef.current = serial;
+        const { data } = await api.get(`/complaints/check-serial/${encodeURIComponent(serial)}`);
+        setSerialExists(data.exists);
+      } catch (err) {
+        console.error("Failed to check serial duplicate status:", err);
+      } finally {
+        setCheckingSerial(false);
+      }
+    }, 450);
+
+    return () => {
+      if (serialTimerRef.current) clearTimeout(serialTimerRef.current);
+    };
+  }, [form.product_serial]);
+
   const addPhotos = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -252,7 +286,14 @@ export default function NewComplaint() {
                 <Input id="invoice" value={form.invoice_number} onChange={set("invoice_number")} className="bg-white border-slate-300 focus-visible:ring-slate-900 font-mono" data-testid="form-invoice-input" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="serial">Product serial number</Label>
+                <Label htmlFor="serial" className="flex items-center gap-2">
+                  Product serial number
+                  {checkingSerial && (
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="serial"
                   value={form.product_serial}
@@ -263,9 +304,16 @@ export default function NewComplaint() {
                     })
                   }
                   required
-                  className="bg-white border-slate-300 focus-visible:ring-slate-900 font-mono uppercase"
+                  className={`bg-white border-slate-300 focus-visible:ring-slate-900 font-mono uppercase ${
+                    serialExists ? "border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500" : ""
+                  }`}
                   data-testid="form-serial-input"
                 />
+                {serialExists && (
+                  <p className="text-xs text-red-500 font-medium flex items-center gap-1" data-testid="serial-exists-warning">
+                    <AlertCircle className="h-3.5 w-3.5" /> Sr. no already exist
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="product">Product details</Label>

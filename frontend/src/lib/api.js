@@ -260,6 +260,11 @@ const demoAdapter = (config) => {
           status = 404;
           responseData = { detail: "Complaint not found" };
         }
+      } else if (path.startsWith("/complaints/check-serial/") && method === "GET") {
+        const serial = decodeURIComponent(path.split("/")[3]).trim().toLowerCase();
+        const list = getMockComplaints();
+        const exists = list.some(c => (c.product_serial || "").trim().toLowerCase() === serial);
+        responseData = { exists };
       } else if (path.startsWith("/complaints/") && method === "GET") {
         const cid = path.split("/")[2];
         const list = getMockComplaints();
