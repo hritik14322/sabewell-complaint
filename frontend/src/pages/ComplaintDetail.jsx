@@ -225,7 +225,7 @@ export default function ComplaintDetail() {
           </Card>
 
           <Card className="p-6 border-slate-200 shadow-sm">
-            <h2 className="font-heading text-lg font-semibold mb-4">Customer</h2>
+            <h2 className="font-heading text-lg font-semibold mb-4">Customer - {c.complaint_id}</h2>
             <dl className="grid sm:grid-cols-2 gap-4 text-sm">
               <Field label="Name" value={c.name} testid="detail-name" />
               <Field label="Phone" value={c.phone} testid="detail-phone" mono />
