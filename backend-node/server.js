@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const { MongoClient, ReturnDocument } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -51,6 +50,8 @@ async function connectDB() {
 }
 
 // ─── App ────────────────────────────────────────────────────────────────────
+const path = require("path");
+const fs = require("fs");
 const app = express();
 
 const corsOrigins = (process.env.CORS_ORIGINS || "*").split(",").map((s) => s.trim());
@@ -63,6 +64,10 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Serve React static build files from ./public
+const STATIC_DIR = path.join(__dirname, "public");
+app.use(express.static(STATIC_DIR));
 
 // multer: store in memory for upload to object storage
 const upload = multer({
@@ -1066,20 +1071,15 @@ async function main() {
   // Mount API router
   app.use("/api", router);
 
-  // Serve React frontend static build (only if build exists)
-  const fs = require("fs");
-  const frontendBuild = path.join(__dirname, "..", "frontend", "build");
-  const indexHtml = path.join(frontendBuild, "index.html");
-
-  if (fs.existsSync(indexHtml)) {
-    app.use(express.static(frontendBuild));
-    app.get("*", (req, res) => {
-      res.sendFile(indexHtml);
-    });
-    console.log("Serving React frontend from:", frontendBuild);
-  } else {
-    console.log("No frontend build found — serving API only");
-  }
+  // SPA fallback: serve index.html for any non-API route (React Router support)
+  app.get("*", (req, res) => {
+    const indexPath = path.join(__dirname, "public", "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.json({ service: `${BRAND_NAME} complaint tracker`, status: "ok" });
+    }
+  });
 
   app.listen(PORT, () => {
     console.log(`Sabewell backend running on port ${PORT}`);
