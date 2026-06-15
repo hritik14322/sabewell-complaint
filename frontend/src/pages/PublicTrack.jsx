@@ -9,7 +9,7 @@ import PhotoGallery from "@/components/PhotoGallery";
 import api from "@/lib/api";
 import DemoToggle from "@/components/DemoToggle";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${process.env.REACT_APP_BACKEND_URL || ""}/api`;
 
 const STEPS = ["Pending", "In Progress", "Resolved"];
 
