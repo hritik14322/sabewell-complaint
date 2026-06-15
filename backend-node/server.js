@@ -1066,14 +1066,20 @@ async function main() {
   // Mount API router
   app.use("/api", router);
 
-  // Serve React frontend static build
+  // Serve React frontend static build (only if build exists)
+  const fs = require("fs");
   const frontendBuild = path.join(__dirname, "..", "frontend", "build");
-  app.use(express.static(frontendBuild));
+  const indexHtml = path.join(frontendBuild, "index.html");
 
-  // Catch-all: send index.html for all non-API routes (React Router)
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(frontendBuild, "index.html"));
-  });
+  if (fs.existsSync(indexHtml)) {
+    app.use(express.static(frontendBuild));
+    app.get("*", (req, res) => {
+      res.sendFile(indexHtml);
+    });
+    console.log("Serving React frontend from:", frontendBuild);
+  } else {
+    console.log("No frontend build found — serving API only");
+  }
 
   app.listen(PORT, () => {
     console.log(`Sabewell backend running on port ${PORT}`);
