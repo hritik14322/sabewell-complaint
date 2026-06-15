@@ -374,6 +374,11 @@ async function sendSms(toPhone, body) {
   }
 }
 
+// ─── Root health-check (Hostinger hits / to verify the app is alive) ──────────
+app.get("/", (req, res) => {
+  res.json({ service: `${BRAND_NAME} complaint tracker`, status: "ok" });
+});
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 const router = express.Router();
 
@@ -1056,6 +1061,9 @@ async function main() {
   await ensureIndexes();
   await backfillCustomers();
   try { await initStorage(); } catch (e) { console.error("Storage init at startup failed:", e.message); }
+
+  // Mount API router
+  app.use("/api", router);
 
   app.listen(PORT, () => {
     console.log(`Sabewell backend running on port ${PORT}`);
