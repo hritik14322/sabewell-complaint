@@ -6,10 +6,10 @@ import { Link } from "react-router-dom";
  */
 export default function Logo({ to = "/", className = "", size = "md", testid = "brand-logo" }) {
   const heights = {
-    sm: "h-7",
-    md: "h-9",
-    lg: "h-12",
-    xl: "h-16",
+    sm: "h-8",
+    md: "h-12",
+    lg: "h-16",
+    xl: "h-20",
   };
   const h = heights[size] || heights.md;
 
