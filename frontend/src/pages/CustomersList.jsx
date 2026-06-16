@@ -10,7 +10,9 @@ import { formatDateTime } from "@/lib/complaint";
 
 export default function CustomersList() {
   const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => {
+    return sessionStorage.getItem("admin_customers_search_query") || "";
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async (query = "") => {
@@ -22,6 +24,10 @@ export default function CustomersList() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    sessionStorage.setItem("admin_customers_search_query", q);
+  }, [q]);
 
   useEffect(() => {
     const t = setTimeout(() => fetchAll(q), 300);

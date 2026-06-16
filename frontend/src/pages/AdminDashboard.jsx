@@ -33,8 +33,12 @@ const STAT_TILES = [
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ total: 0, pending: 0, in_progress: 0, resolved: 0 });
   const [items, setItems] = useState([]);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return sessionStorage.getItem("admin_complaints_status_filter") || "all";
+  });
+  const [q, setQ] = useState(() => {
+    return sessionStorage.getItem("admin_complaints_search_query") || "";
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async (s = statusFilter, query = q) => {
@@ -55,6 +59,15 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  // Sync state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem("admin_complaints_status_filter", statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem("admin_complaints_search_query", q);
+  }, [q]);
 
   // Initial + status filter changes
   useEffect(() => {
