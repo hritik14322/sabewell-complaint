@@ -58,7 +58,7 @@ export default function ComplaintDetail() {
       });
       setC(data);
       setNote("");
-      
+
       const sms = data.sms_status || { ok: false, message: "" };
       if (sms.ok) {
         toast.success(`Status updated to ${data.status}. SMS sent.`);

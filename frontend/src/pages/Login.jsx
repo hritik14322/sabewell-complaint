@@ -14,7 +14,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState(() => {
     const isDemo = typeof window !== "undefined" && localStorage.getItem("demo_mode") === "true";
-    return isDemo ? "admin@company.com" : "ayush@sabewell.com";
+    return isDemo ? "admin@company.com" : "";
   });
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

@@ -16,9 +16,9 @@ services:
       - key: JWT_SECRET
         generateValue: true # Generates a random secure JWT secret key automatically!
       - key: ADMIN_EMAIL
-        value: ayush@sabewell.com
+        value: admin@company.com
       - key: ADMIN_PASSWORD
-        value: Ayush@123
+        value: Admin@123
       - key: BRAND_NAME
         value: sabewell
       - key: PUBLIC_APP_URL
