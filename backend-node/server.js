@@ -207,12 +207,20 @@ async function initStorage() {
   }
 }
 
-async function storagePut(path, data, contentType) {
+const UPLOADS_DIR = path.join(__dirname, "local_uploads");
+
+async function storagePut(pathName, data, contentType) {
   let key = await initStorage();
-  if (!key) throw Object.assign(new Error("Storage unavailable"), { statusCode: 503 });
+  if (!key) {
+    console.info(`[Storage Fallback] Saving file locally: ${pathName}`);
+    const localPath = path.join(UPLOADS_DIR, pathName);
+    fs.mkdirSync(path.dirname(localPath), { recursive: true });
+    fs.writeFileSync(localPath, data);
+    return { path: pathName, size: data.length };
+  }
 
   const doRequest = async (k) =>
-    axios.put(`${STORAGE_URL}/objects/${path}`, data, {
+    axios.put(`${STORAGE_URL}/objects/${pathName}`, data, {
       headers: { "X-Storage-Key": k, "Content-Type": contentType },
       timeout: 120000,
     });
@@ -233,12 +241,20 @@ async function storagePut(path, data, contentType) {
   return resp.data;
 }
 
-async function storageGet(path) {
+async function storageGet(pathName) {
   let key = await initStorage();
-  if (!key) throw Object.assign(new Error("Storage unavailable"), { statusCode: 503 });
+  if (!key) {
+    console.info(`[Storage Fallback] Reading file locally: ${pathName}`);
+    const localPath = path.join(UPLOADS_DIR, pathName);
+    if (!fs.existsSync(localPath)) {
+      throw Object.assign(new Error("File not found"), { statusCode: 404 });
+    }
+    const data = fs.readFileSync(localPath);
+    return { data, contentType: "application/octet-stream" };
+  }
 
   const doRequest = async (k) =>
-    axios.get(`${STORAGE_URL}/objects/${path}`, {
+    axios.get(`${STORAGE_URL}/objects/${pathName}`, {
       headers: { "X-Storage-Key": k },
       responseType: "arraybuffer",
       timeout: 60000,

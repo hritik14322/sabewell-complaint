@@ -2,4 +2,6 @@ node_modules/
 .env
 *.log
 public/
+local_uploads/
+
 
