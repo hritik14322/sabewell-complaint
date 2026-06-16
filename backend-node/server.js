@@ -16,6 +16,8 @@ const JWT_ALGORITHM = process.env.JWT_ALGORITHM || "HS256";
 const JWT_EXPIRE_HOURS = 24 * 7;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const SERVICER_EMAIL = process.env.SERVICER_EMAIL || "servicer@company.com";
+const SERVICER_PASSWORD = process.env.SERVICER_PASSWORD || "Servicer@123";
 const BRAND_NAME = process.env.BRAND_NAME || "sabewell";
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "";
 const PORT = process.env.PORT || 8000;
@@ -36,6 +38,12 @@ const APP_NAME = process.env.APP_NAME || "sabewell";
 const ALLOWED_STATUSES = ["Pending", "In Progress", "Resolved"];
 const ALLOWED_WARRANTY = ["Warranted", "Unwarranted"];
 const ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ALLOWED_SERVICER_FILE_MIME = new Set([
+  "image/jpeg", "image/png", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_PHOTOS_PER_COMPLAINT = 5;
 
@@ -92,8 +100,8 @@ function verifyPassword(pw, hashed) {
   }
 }
 
-function createToken(email) {
-  return jwt.sign({ sub: email }, JWT_SECRET, {
+function createToken(email, role = "admin") {
+  return jwt.sign({ sub: email, role }, JWT_SECRET, {
     algorithm: JWT_ALGORITHM,
     expiresIn: `${JWT_EXPIRE_HOURS}h`,
   });
@@ -112,6 +120,7 @@ function requireAuth(req, res, next) {
   try {
     const payload = verifyToken(header.slice(7));
     req.adminEmail = payload.sub;
+    req.adminRole = payload.role || "admin";
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -119,6 +128,16 @@ function requireAuth(req, res, next) {
     }
     return res.status(401).json({ detail: "Invalid token" });
   }
+}
+
+// Admin-only middleware
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.adminRole !== "admin") {
+      return res.status(403).json({ detail: "Forbidden: Admin access required" });
+    }
+    next();
+  });
 }
 
 // Optional auth (doesn't block unauthenticated, just populates req.adminEmail)
@@ -407,8 +426,8 @@ router.post("/auth/login", async (req, res) => {
     if (!admin || !verifyPassword(password, admin.password_hash)) {
       return res.status(401).json({ detail: "Invalid email or password" });
     }
-    const token = createToken(admin.email);
-    res.json({ access_token: token, token_type: "bearer", email: admin.email });
+    const token = createToken(admin.email, admin.role || "admin");
+    res.json({ access_token: token, token_type: "bearer", email: admin.email, role: admin.role || "admin" });
   } catch (e) {
     res.status(500).json({ detail: e.message });
   }
@@ -547,7 +566,7 @@ router.get("/complaints/:cid", requireAuth, async (req, res) => {
 });
 
 // PATCH /api/complaints/:cid/status
-router.patch("/complaints/:cid/status", requireAuth, async (req, res) => {
+router.patch("/complaints/:cid/status", requireAdmin, async (req, res) => {
   try {
     const { cid } = req.params;
     const { status, note } = req.body;
@@ -590,8 +609,100 @@ router.patch("/complaints/:cid/status", requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/complaints/:cid/servicer-status
+router.post("/complaints/:cid/servicer-status", requireAuth, upload.single("file"), async (req, res) => {
+  try {
+    const { cid } = req.params;
+    const { status, note } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ detail: "Status is required" });
+    }
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ detail: `Invalid status. Allowed: ${ALLOWED_STATUSES.join(", ")}` });
+    }
+    if (!req.file) {
+      return res.status(400).json({ detail: "File upload is required for servicer status updates" });
+    }
+
+    const doc = await db.collection("complaints").findOne({ complaint_id: cid }, { projection: { _id: 0 } });
+    if (!doc) return res.status(404).json({ detail: "Complaint not found" });
+
+    // Process and upload file to object storage
+    const contentType = (req.file.mimetype || "").toLowerCase();
+    if (!ALLOWED_SERVICER_FILE_MIME.has(contentType)) {
+      return res.status(400).json({ detail: "Only PDF, Word, and images allowed" });
+    }
+    if (req.file.size === 0) return res.status(400).json({ detail: "Empty file" });
+
+    const originalName = req.file.originalname || "attachment";
+    const ext = originalName.split(".").pop() || "bin";
+    const fileId = uuidv4();
+    const path = `${APP_NAME}/complaints/${cid}/${fileId}.${ext}`;
+    
+    const uploadResult = await storagePut(path, req.file.buffer, contentType);
+
+    const fileRecord = {
+      id: fileId,
+      storage_path: uploadResult.path,
+      original_filename: originalName,
+      content_type: contentType,
+      size: uploadResult.size || req.file.size,
+      uploaded_at: nowIso(),
+    };
+
+    // Prepare update queries
+    const now = nowIso();
+    const updaterEmail = req.adminEmail;
+    const updateNote = note ? note.trim() : "";
+    const timelineEntry = {
+      status,
+      note: `${updateNote ? updateNote + " " : ""}(Status updated by Servicer ${updaterEmail}. Uploaded: ${originalName})`,
+      at: now,
+    };
+
+    // Perform database updates
+    await db.collection("complaints").updateOne(
+      { complaint_id: cid },
+      { 
+        $push: { 
+          photos: fileRecord,
+          status_history: timelineEntry 
+        }, 
+        $set: { 
+          status,
+          updated_at: now 
+        } 
+      }
+    );
+
+    const updatedDoc = await db.collection("complaints").findOne({ complaint_id: cid }, { projection: { _id: 0 } });
+
+    // Send customer notifications
+    const trackUrl = buildTrackingUrl(cid);
+    const brand = updatedDoc.brand_name || BRAND_NAME;
+    const bodyMsg = `Hello ${updatedDoc.name}, update on your complaint with ${brand}.\n\n` +
+      `Complaint ID: ${cid}\nStatus: ${status}\nTrack here: ${trackUrl}`;
+
+    let [smsOk, smsMsg] = await sendSmsFast2sms(updatedDoc.phone, bodyMsg);
+    if (!smsOk) {
+      const [twOk, twMsg] = await sendSms(updatedDoc.phone, bodyMsg);
+      if (twOk) { smsOk = true; smsMsg = twMsg; }
+      else smsMsg = `Fast2SMS: ${smsMsg} | Twilio: ${twMsg}`;
+    }
+    const [waOk, waMsg] = await sendWhatsappFast2sms(updatedDoc.phone, [updatedDoc.name, cid, status, trackUrl]);
+
+    updatedDoc.sms_status = { ok: smsOk, message: smsMsg };
+    updatedDoc.whatsapp_status = { ok: waOk, message: waMsg };
+
+    res.json(updatedDoc);
+  } catch (e) {
+    res.status(500).json({ detail: e.message });
+  }
+});
+
 // DELETE /api/complaints/:cid
-router.delete("/complaints/:cid", requireAuth, async (req, res) => {
+router.delete("/complaints/:cid", requireAdmin, async (req, res) => {
   try {
     const { cid } = req.params;
     const doc = await db.collection("complaints").findOne({ complaint_id: cid }, { projection: { _id: 0, phone: 1 } });
@@ -609,7 +720,7 @@ router.delete("/complaints/:cid", requireAuth, async (req, res) => {
 });
 
 // PATCH /api/complaints/:cid/warranty
-router.patch("/complaints/:cid/warranty", requireAuth, async (req, res) => {
+router.patch("/complaints/:cid/warranty", requireAdmin, async (req, res) => {
   try {
     const { cid } = req.params;
     const { warranty } = req.body;
@@ -791,7 +902,7 @@ router.get("/customers/:phone", requireAuth, async (req, res) => {
 });
 
 // PATCH /api/customers/:phone
-router.patch("/customers/:phone", requireAuth, async (req, res) => {
+router.patch("/customers/:phone", requireAdmin, async (req, res) => {
   try {
     const phone = normalizePhone(req.params.phone.trim());
     const body = req.body;
@@ -828,7 +939,7 @@ router.patch("/customers/:phone", requireAuth, async (req, res) => {
 });
 
 // DELETE /api/customers/:phone
-router.delete("/customers/:phone", requireAuth, async (req, res) => {
+router.delete("/customers/:phone", requireAdmin, async (req, res) => {
   try {
     const phone = normalizePhone(req.params.phone.trim());
     const cascade = req.query.cascade === "true";
@@ -906,7 +1017,7 @@ router.post("/complaints/:cid/photos", requireAuth, upload.single("file"), async
 });
 
 // DELETE /api/complaints/:cid/photos/:photoId
-router.delete("/complaints/:cid/photos/:photoId", requireAuth, async (req, res) => {
+router.delete("/complaints/:cid/photos/:photoId", requireAdmin, async (req, res) => {
   try {
     const { cid, photoId } = req.params;
     const doc = await db.collection("complaints").findOne({ complaint_id: cid }, { projection: { _id: 0 } });
@@ -998,21 +1109,42 @@ app.use("/api", router);
 async function seedAdmin() {
   const col = db.collection("admins");
   // Remove stale admins
-  await col.deleteMany({ email: { $ne: ADMIN_EMAIL.toLowerCase() } });
+  await col.deleteMany({ email: { $nin: [ADMIN_EMAIL.toLowerCase(), SERVICER_EMAIL.toLowerCase()] } });
+
+  // Admin seeding
   const existing = await col.findOne({ email: ADMIN_EMAIL.toLowerCase() });
   if (!existing) {
     await col.insertOne({
       email: ADMIN_EMAIL.toLowerCase(),
       password_hash: hashPassword(ADMIN_PASSWORD),
+      role: "admin",
       created_at: nowIso(),
     });
     console.log(`Seeded admin: ${ADMIN_EMAIL}`);
   } else {
     await col.updateOne(
       { email: ADMIN_EMAIL.toLowerCase() },
-      { $set: { password_hash: hashPassword(ADMIN_PASSWORD) } }
+      { $set: { password_hash: hashPassword(ADMIN_PASSWORD), role: "admin" } }
     );
     console.log(`Admin password updated: ${ADMIN_EMAIL}`);
+  }
+
+  // Servicer seeding
+  const existingServicer = await col.findOne({ email: SERVICER_EMAIL.toLowerCase() });
+  if (!existingServicer) {
+    await col.insertOne({
+      email: SERVICER_EMAIL.toLowerCase(),
+      password_hash: hashPassword(SERVICER_PASSWORD),
+      role: "servicer",
+      created_at: nowIso(),
+    });
+    console.log(`Seeded servicer: ${SERVICER_EMAIL}`);
+  } else {
+    await col.updateOne(
+      { email: SERVICER_EMAIL.toLowerCase() },
+      { $set: { password_hash: hashPassword(SERVICER_PASSWORD), role: "servicer" } }
+    );
+    console.log(`Servicer password updated: ${SERVICER_EMAIL}`);
   }
 }
 

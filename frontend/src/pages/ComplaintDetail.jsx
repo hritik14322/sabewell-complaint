@@ -12,12 +12,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Link as LinkIcon, MessageCircle, Copy, Camera, Trash2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { StatusPill, STATUSES, WARRANTIES, WarrantyPill, formatDateTime } from "@/lib/complaint";
 import PhotoGallery from "@/components/PhotoGallery";
 
 export default function ComplaintDetail() {
+  const role = typeof window !== "undefined" ? localStorage.getItem("sw_role") : "admin";
   const { cid } = useParams();
   const navigate = useNavigate();
   const [c, setC] = useState(null);
@@ -25,6 +28,7 @@ export default function ComplaintDetail() {
   const [newStatus, setNewStatus] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [servicerFile, setServicerFile] = useState(null);
 
   const fetchOne = async () => {
     setLoading(true);
@@ -68,6 +72,43 @@ export default function ComplaintDetail() {
       toast.info("Click 'Send via WhatsApp (Free)' in the sidebar to notify the customer.", { duration: 6000 });
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update status");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleServicerUpdate = async (e) => {
+    e.preventDefault();
+    if (!newStatus || newStatus === c.status) {
+      toast.error("Please select a new status");
+      return;
+    }
+    if (!servicerFile) {
+      toast.error("Verification file is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append("status", newStatus);
+      fd.append("note", note || "");
+      fd.append("file", servicerFile);
+
+      const { data } = await api.post(`/complaints/${cid}/servicer-status`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setC(data);
+      setNote("");
+      setServicerFile(null);
+      
+      const sms = data.sms_status || { ok: false, message: "" };
+      if (sms.ok) {
+        toast.success(`Status updated to ${data.status} by servicer. SMS sent.`);
+      } else {
+        toast.success(`Status updated to ${data.status} by servicer.`);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to submit status update");
     } finally {
       setSaving(false);
     }
@@ -180,14 +221,16 @@ export default function ComplaintDetail() {
               <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
             </Button>
           </Link>
-          <Button
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-            onClick={deleteComplaint}
-            data-testid="detail-delete-complaint-btn"
-          >
-            <Trash2 className="h-4 w-4 mr-1.5" /> Delete
-          </Button>
+          {role === "admin" && (
+            <Button
+              variant="outline"
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+              onClick={deleteComplaint}
+              data-testid="detail-delete-complaint-btn"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+            </Button>
+          )}
         </div>
       }
     >
@@ -204,16 +247,18 @@ export default function ComplaintDetail() {
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Warranty</div>
                   <div className="mt-2 flex items-center gap-2">
                     <WarrantyPill warranty={c.warranty} testid="detail-current-warranty" />
-                    <Select value={c.warranty} onValueChange={updateWarranty}>
-                      <SelectTrigger className="h-7 px-2 text-xs bg-white border-slate-300 w-auto" data-testid="detail-warranty-select">
-                        <SelectValue placeholder="Change" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WARRANTIES.map((w) => (
-                          <SelectItem key={w} value={w} data-testid={`detail-warranty-option-${w.toLowerCase()}`}>{w}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {role === "admin" && (
+                      <Select value={c.warranty} onValueChange={updateWarranty}>
+                        <SelectTrigger className="h-7 px-2 text-xs bg-white border-slate-300 w-auto" data-testid="detail-warranty-select">
+                          <SelectValue placeholder="Change" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WARRANTIES.map((w) => (
+                            <SelectItem key={w} value={w} data-testid={`detail-warranty-option-${w.toLowerCase()}`}>{w}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               </div>
@@ -267,7 +312,7 @@ export default function ComplaintDetail() {
             <PhotoGallery
               complaintId={c.complaint_id}
               photos={c.photos || []}
-              editable={true}
+              editable={role === "admin"}
               publicMode={false}
               onChange={(updated) => setC({ ...c, photos: updated })}
             />
@@ -291,39 +336,88 @@ export default function ComplaintDetail() {
         </div>
 
         <div className="space-y-6">
-          <Card className="p-6 border-slate-200 shadow-sm">
-            <h2 className="font-heading text-lg font-semibold">Update status</h2>
-            <p className="text-sm text-slate-600 mt-1">Update the complaint status. You can notify the customer via WhatsApp for free below.</p>
-            <div className="mt-4 space-y-3">
-              <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger className="bg-white border-slate-300" data-testid="status-select">
-                  <SelectValue placeholder="Choose status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s} data-testid={`status-option-${s.toLowerCase().replace(" ", "-")}`}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                placeholder="Add an internal note (optional, sent to customer too)"
-                className="bg-white border-slate-300 focus-visible:ring-slate-900"
-                data-testid="status-note-input"
-              />
-              <Button
-                onClick={updateStatus}
-                disabled={saving || newStatus === c.status}
-                className="w-full bg-black hover:bg-slate-800 text-white"
-                data-testid="status-update-btn"
-              >
-                <MessageCircle className="h-4 w-4 mr-1.5" />
-                {saving ? "Updating..." : "Update & notify"}
-              </Button>
-            </div>
-          </Card>
+          {role === "admin" ? (
+            <Card className="p-6 border-slate-200 shadow-sm">
+              <h2 className="font-heading text-lg font-semibold">Update status</h2>
+              <p className="text-sm text-slate-600 mt-1">Update the complaint status. You can notify the customer via WhatsApp for free below.</p>
+              <div className="mt-4 space-y-3">
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger className="bg-white border-slate-300" data-testid="status-select">
+                    <SelectValue placeholder="Choose status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s} data-testid={`status-option-${s.toLowerCase().replace(" ", "-")}`}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add an internal note (optional, sent to customer too)"
+                  className="bg-white border-slate-300 focus-visible:ring-slate-900"
+                  data-testid="status-note-input"
+                />
+                <Button
+                  onClick={updateStatus}
+                  disabled={saving || newStatus === c.status}
+                  className="w-full bg-black hover:bg-slate-800 text-white"
+                  data-testid="status-update-btn"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1.5" />
+                  {saving ? "Updating..." : "Update & notify"}
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-6 border-slate-200 shadow-sm">
+              <h2 className="font-heading text-lg font-semibold">Servicer Status Update</h2>
+              <p className="text-sm text-slate-600 mt-1">Select a new status and upload a report or image to verify the update.</p>
+              <form onSubmit={handleServicerUpdate} className="mt-4 space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">New Status</Label>
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger className="bg-white border-slate-300">
+                      <SelectValue placeholder="Choose status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Upload Verification File / Image (Required)</Label>
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf,.doc,.docx"
+                    onChange={(e) => setServicerFile(e.target.files ? e.target.files[0] : null)}
+                    required
+                    className="bg-white border-slate-300 focus-visible:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Notes / Comments</Label>
+                  <Textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={2}
+                    placeholder="Explain what was done (optional)"
+                    className="bg-white border-slate-300 focus-visible:ring-slate-900"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={saving || !servicerFile || newStatus === c.status}
+                  className="w-full bg-black hover:bg-slate-800 text-white"
+                >
+                  {saving ? "Uploading & Updating..." : "Submit Update"}
+                </Button>
+              </form>
+            </Card>
+          )}
 
           <Card className="p-6 border-slate-200 shadow-sm">
             <h2 className="font-heading text-lg font-semibold flex items-center gap-2">

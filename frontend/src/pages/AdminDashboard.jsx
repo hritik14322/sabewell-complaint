@@ -31,6 +31,7 @@ const STAT_TILES = [
 ];
 
 export default function AdminDashboard() {
+  const role = typeof window !== "undefined" ? localStorage.getItem("sw_role") : "admin";
   const [stats, setStats] = useState({ total: 0, pending: 0, in_progress: 0, resolved: 0 });
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState(() => {
@@ -93,11 +94,13 @@ export default function AdminDashboard() {
     <AdminLayout
       title="Complaints"
       action={
-        <Link to="/admin/new" data-testid="new-complaint-link">
-          <Button className="bg-black hover:bg-slate-800 text-white">
-            <Plus className="h-4 w-4 mr-1.5" /> Register complaint
-          </Button>
-        </Link>
+        role === "admin" && (
+          <Link to="/admin/new" data-testid="new-complaint-link">
+            <Button className="bg-black hover:bg-slate-800 text-white">
+              <Plus className="h-4 w-4 mr-1.5" /> Register complaint
+            </Button>
+          </Link>
+        )
       }
     >
       {/* Stats */}

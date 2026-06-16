@@ -12,6 +12,7 @@ export default function AdminLayout({ children, title, action }) {
   const logout = () => {
     localStorage.removeItem("sw_token");
     localStorage.removeItem("sw_email");
+    localStorage.removeItem("sw_role");
     sessionStorage.removeItem("admin_complaints_search_query");
     sessionStorage.removeItem("admin_complaints_status_filter");
     sessionStorage.removeItem("admin_customers_search_query");

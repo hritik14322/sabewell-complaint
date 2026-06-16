@@ -13,6 +13,7 @@ import api from "@/lib/api";
 import { StatusPill, formatDate, formatDateTime } from "@/lib/complaint";
 
 export default function CustomerDetail() {
+  const role = typeof window !== "undefined" ? localStorage.getItem("sw_role") : "admin";
   const { phone: rawPhone } = useParams();
   const phone = decodeURIComponent(rawPhone || "");
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ export default function CustomerDetail() {
               <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
             </Button>
           </Link>
-          {!editing && (
+          {role === "admin" && !editing && (
             <Button variant="outline" className="border-slate-200 hover:border-slate-400" onClick={() => setEditing(true)} data-testid="customer-edit-btn">
               <Pencil className="h-4 w-4 mr-1.5" /> Edit
             </Button>
@@ -190,15 +191,17 @@ export default function CustomerDetail() {
                       <TableCell className="py-3"><StatusPill status={cp.status} /></TableCell>
                       <TableCell className="py-3 text-right">
                         <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => deleteComplaint(cp.complaint_id)}
-                            className="p-1 rounded-md text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete complaint"
-                            data-testid={`history-delete-${cp.complaint_id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {role === "admin" && (
+                            <button
+                              type="button"
+                              onClick={() => deleteComplaint(cp.complaint_id)}
+                              className="p-1 rounded-md text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete complaint"
+                              data-testid={`history-delete-${cp.complaint_id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                           <Link to={`/admin/c/${cp.complaint_id}`}>
                             <ChevronRight className="h-4 w-4 text-slate-400 hover:text-slate-900 inline" />
                           </Link>

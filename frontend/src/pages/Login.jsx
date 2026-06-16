@@ -57,6 +57,7 @@ export default function Login() {
       const { data } = await api.post("/auth/login", { email, password });
       localStorage.setItem("sw_token", data.access_token);
       localStorage.setItem("sw_email", data.email);
+      localStorage.setItem("sw_role", data.role || "admin");
       toast.success("Welcome back");
       navigate("/admin");
     } catch (err) {

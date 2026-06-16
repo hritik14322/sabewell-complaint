@@ -42,6 +42,15 @@ const EMPTY = {
 
 export default function NewComplaint() {
   const navigate = useNavigate();
+  const role = typeof window !== "undefined" ? localStorage.getItem("sw_role") : "admin";
+
+  useEffect(() => {
+    if (role !== "admin") {
+      toast.error("Access denied: Admins only");
+      navigate("/admin");
+    }
+  }, [role, navigate]);
+
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState([]);
