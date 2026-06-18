@@ -28,7 +28,15 @@ export default function ComplaintDetail() {
   const [newStatus, setNewStatus] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [servicerFile, setServicerFile] = useState(null);
+  const [servicerFiles, setServicerFiles] = useState([]);
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   const fetchOne = async () => {
     setLoading(true);
@@ -83,8 +91,13 @@ export default function ComplaintDetail() {
       toast.error("Please select a new status");
       return;
     }
-    if (!servicerFile) {
+    if (servicerFiles.length === 0) {
       toast.error("Verification file is required");
+      return;
+    }
+    const existingCount = c?.photos?.length || 0;
+    if (existingCount + servicerFiles.length > 5) {
+      toast.error(`Cannot upload ${servicerFiles.length} file(s). Maximum total attachments allowed is 5.`);
       return;
     }
     setSaving(true);
@@ -92,14 +105,16 @@ export default function ComplaintDetail() {
       const fd = new FormData();
       fd.append("status", newStatus);
       fd.append("note", note || "");
-      fd.append("file", servicerFile);
+      servicerFiles.forEach((file) => {
+        fd.append("files", file);
+      });
 
       const { data } = await api.post(`/complaints/${cid}/servicer-status`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setC(data);
       setNote("");
-      setServicerFile(null);
+      setServicerFiles([]);
       
       const sms = data.sms_status || { ok: false, message: "" };
       if (sms.ok) {
@@ -392,11 +407,37 @@ export default function ComplaintDetail() {
                   <Label className="text-xs">Upload Verification File / Image (Required)</Label>
                   <Input
                     type="file"
+                    multiple
                     accept="image/*,application/pdf,.doc,.docx"
-                    onChange={(e) => setServicerFile(e.target.files ? e.target.files[0] : null)}
-                    required
+                    onChange={(e) => setServicerFiles(e.target.files ? Array.from(e.target.files) : [])}
+                    required={servicerFiles.length === 0}
                     className="bg-white border-slate-300 focus-visible:ring-slate-900"
                   />
+                  {servicerFiles.length > 0 && (
+                    <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      <Label className="text-[11px] text-slate-500 font-medium">Selected files ({servicerFiles.length}):</Label>
+                      {servicerFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-700">
+                          <span className="truncate max-w-[180px] font-medium" title={file.name}>{file.name}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-slate-400 font-mono">{formatFileSize(file.size)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setServicerFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-700 transition-colors p-0.5 rounded hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {c?.photos && c.photos.length + servicerFiles.length > 5 && (
+                    <p className="text-xs font-semibold text-rose-600 mt-1">
+                      Warning: Combined total attachments will exceed the limit of 5. Please remove some files. (Existing: {c.photos.length}, Selected: {servicerFiles.length})
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Notes / Comments</Label>
@@ -410,7 +451,7 @@ export default function ComplaintDetail() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={saving || !servicerFile || newStatus === c.status}
+                  disabled={saving || servicerFiles.length === 0 || newStatus === c.status || (c?.photos?.length || 0) + servicerFiles.length > 5}
                   className="w-full bg-black hover:bg-slate-800 text-white"
                 >
                   {saving ? "Uploading & Updating..." : "Submit Update"}

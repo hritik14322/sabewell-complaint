@@ -19,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, ChevronRight } from "lucide-react";
+import { Plus, Search, ChevronRight, Download, Printer } from "lucide-react";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import { StatusPill, WarrantyPill, formatDate, formatDateTime, STATUSES } from "@/lib/complaint";
 
@@ -40,7 +41,42 @@ export default function AdminDashboard() {
   const [q, setQ] = useState(() => {
     return sessionStorage.getItem("admin_complaints_search_query") || "";
   });
+  const [dateFilterType, setDateFilterType] = useState(() => {
+    return sessionStorage.getItem("admin_complaints_date_filter_type") || "all";
+  });
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    return sessionStorage.getItem("admin_complaints_custom_start_date") || "";
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return sessionStorage.getItem("admin_complaints_custom_end_date") || "";
+  });
   const [loading, setLoading] = useState(true);
+
+  const toLocalDateString = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const getDateRange = () => {
+    if (dateFilterType === "this-month") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { start_date: toLocalDateString(start), end_date: toLocalDateString(end) };
+    }
+    if (dateFilterType === "last-month") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start_date: toLocalDateString(start), end_date: toLocalDateString(end) };
+    }
+    if (dateFilterType === "custom") {
+      return { start_date: customStartDate || null, end_date: customEndDate || null };
+    }
+    return { start_date: null, end_date: null };
+  };
 
   const fetchAll = async (s = statusFilter, query = q) => {
     setLoading(true);
@@ -48,8 +84,13 @@ export default function AdminDashboard() {
       const params = {};
       if (s && s !== "all") params.status_filter = s;
       if (query) params.q = query;
+
+      const dateRange = getDateRange();
+      if (dateRange.start_date) params.start_date = dateRange.start_date;
+      if (dateRange.end_date) params.end_date = dateRange.end_date;
+
       const [statsRes, listRes] = await Promise.all([
-        api.get("/stats"),
+        api.get("/stats", { params: { start_date: dateRange.start_date, end_date: dateRange.end_date } }),
         api.get("/complaints", { params }),
       ]);
       setStats(statsRes.data);
@@ -70,11 +111,23 @@ export default function AdminDashboard() {
     sessionStorage.setItem("admin_complaints_search_query", q);
   }, [q]);
 
-  // Initial + status filter changes
+  useEffect(() => {
+    sessionStorage.setItem("admin_complaints_date_filter_type", dateFilterType);
+  }, [dateFilterType]);
+
+  useEffect(() => {
+    sessionStorage.setItem("admin_complaints_custom_start_date", customStartDate);
+  }, [customStartDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem("admin_complaints_custom_end_date", customEndDate);
+  }, [customEndDate]);
+
+  // Initial + status + date filter changes
   useEffect(() => {
     fetchAll(statusFilter, q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, dateFilterType, customStartDate, customEndDate]);
 
   // Real-time debounced search
   useEffect(() => {
@@ -88,6 +141,140 @@ export default function AdminDashboard() {
   const onSearchSubmit = (e) => {
     e.preventDefault();
     fetchAll(statusFilter, q);
+  };
+
+  const downloadExcel = () => {
+    if (items.length === 0) return;
+    
+    // Headers
+    const headers = [
+      "Complaint ID",
+      "Customer Name",
+      "Phone",
+      "Date",
+      "Status",
+      "Warranty",
+      "Product Details",
+      "Product Serial",
+      "Invoice Number",
+      "Issue Description",
+      "Address",
+      "Village",
+      "City",
+      "District",
+      "State",
+      "Pincode"
+    ];
+    
+    // Rows
+    const rows = items.map(c => [
+      c.complaint_id,
+      c.name,
+      c.phone,
+      c.date,
+      c.status,
+      c.warranty || "Warranted",
+      c.product_details || "",
+      c.product_serial || "",
+      c.invoice_number || "",
+      c.issue_description || "",
+      c.address || "",
+      c.village || "",
+      c.city || "",
+      c.district || "",
+      c.state || "",
+      c.pincode || ""
+    ]);
+    
+    // Convert to CSV string, escaping quotes
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => 
+        row.map(val => {
+          const text = String(val).replace(/"/g, '""'); // Escape quotes
+          return text.includes(",") || text.includes("\n") || text.includes('"') ? `"${text}"` : text;
+        }).join(",")
+      )
+    ].join("\n");
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" }); // UTF-8 BOM
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `complaints_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadPdf = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocker prevented opening the print window.");
+      return;
+    }
+    
+    const htmlRows = items.map(c => `
+      <tr>
+        <td style="font-family: monospace;">${c.complaint_id}</td>
+        <td>${c.name}</td>
+        <td>${c.phone}</td>
+        <td>${formatDate(c.date)}</td>
+        <td>${c.status}</td>
+        <td>${c.warranty || "Warranted"}</td>
+        <td>${c.product_serial}</td>
+      </tr>
+    `).join("");
+    
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Complaints Report - ${new Date().toISOString().slice(0, 10)}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; margin: 30px; }
+            h1 { font-size: 24px; margin-bottom: 5px; font-weight: bold; }
+            .meta { font-size: 12px; color: #666; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            tr:nth-child(even) { background-color: #fafafa; }
+            @media print {
+              body { margin: 10px; }
+              @page { size: auto; margin: 15mm; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Sabewell Support - Complaints Report</h1>
+          <div class="meta">Generated on: ${new Date().toLocaleString()} | Total complaints: ${items.length}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Complaint ID</th>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Warranty</th>
+                <th>Product Serial</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${htmlRows}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   return (
@@ -123,34 +310,119 @@ export default function AdminDashboard() {
       </div>
 
       {/* Filters */}
-      <Card className="p-4 mb-4 border-slate-200 shadow-sm">
-        <form onSubmit={onSearchSubmit} className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search ID, name, phone, serial, invoice, product, village, city, district, state, pincode…"
-              className="pl-9 bg-white border-slate-300 focus-visible:ring-slate-900"
-              data-testid="search-input"
-            />
+      <Card className="p-5 mb-4 border-slate-200 shadow-sm">
+        <form onSubmit={onSearchSubmit} className="space-y-4">
+          {/* Row 1: Search */}
+          <div className="flex gap-3 items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search ID, name, phone, serial, invoice, product, village, city, district, state, pincode…"
+                className="pl-9 bg-white border-slate-300 focus-visible:ring-slate-900"
+                data-testid="search-input"
+              />
+            </div>
+            <Button type="submit" className="bg-black hover:bg-slate-800 text-white" data-testid="search-submit-btn">
+              Search
+            </Button>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="sm:w-56 bg-white border-slate-300" data-testid="status-filter-select">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" data-testid="status-filter-all">All statuses</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s} data-testid={`status-filter-${s.toLowerCase().replace(" ", "-")}`}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button type="submit" variant="outline" className="border-slate-200 hover:border-slate-400" data-testid="search-submit-btn">
-            Search
-          </Button>
+
+          {/* Row 2: Status & Date Filters */}
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status:</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-48 bg-white border-slate-300" data-testid="status-filter-select">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="status-filter-all">All statuses</SelectItem>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s} data-testid={`status-filter-${s.toLowerCase().replace(" ", "-")}`}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Filter */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto flex-1">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Date:</label>
+                <Select value={dateFilterType} onValueChange={setDateFilterType}>
+                  <SelectTrigger className="w-full sm:w-44 bg-white border-slate-300" data-testid="date-filter-select">
+                    <SelectValue placeholder="Filter by date" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" data-testid="date-filter-all">All time</SelectItem>
+                    <SelectItem value="this-month" data-testid="date-filter-this-month">This month</SelectItem>
+                    <SelectItem value="last-month" data-testid="date-filter-last-month">Last month</SelectItem>
+                    <SelectItem value="custom" data-testid="date-filter-custom">Custom date</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom Date Range Picker */}
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="bg-white border-slate-300 text-xs py-1 h-9 w-full sm:w-36"
+                    data-testid="date-filter-start"
+                  />
+                  <span className="text-xs text-slate-400">to</span>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="bg-white border-slate-300 text-xs py-1 h-9 w-full sm:w-36"
+                    data-testid="date-filter-end"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </form>
       </Card>
+
+      {/* Count display */}
+      <div className="flex justify-between items-center mb-3 px-1">
+        <span className="text-sm font-semibold text-slate-700" data-testid="complaints-count">
+          {loading ? (
+            <span className="text-slate-400">Loading complaints...</span>
+          ) : (
+            <span>
+              Total: {items.length} complaint{items.length === 1 ? "" : "s"} found
+            </span>
+          )}
+        </span>
+        {items.length > 0 && !loading && (
+          <div className="flex gap-2">
+            <Button
+              onClick={downloadExcel}
+              variant="outline"
+              size="sm"
+              className="text-xs border-slate-200 hover:border-slate-400 h-8 flex items-center gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </Button>
+            <Button
+              onClick={downloadPdf}
+              variant="outline"
+              size="sm"
+              className="text-xs border-slate-200 hover:border-slate-400 h-8 flex items-center gap-1.5"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print / Save PDF
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Table */}
       <Card className="border-slate-200 shadow-sm overflow-hidden">

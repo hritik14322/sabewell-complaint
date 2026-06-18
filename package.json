@@ -1,0 +1,11 @@
+{
+  "name": "sabewell-support-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run start --prefix backend-node",
+    "start": "npm run start --prefix backend-node",
+    "frontend": "npm run start --prefix frontend",
+    "backend": "npm run start --prefix backend-node"
+  }
+}

@@ -551,7 +551,7 @@ router.get("/complaints/check-serial/:serial", async (req, res) => {
 // GET /api/complaints
 router.get("/complaints", requireAuth, async (req, res) => {
   try {
-    const { status_filter, q } = req.query;
+    const { status_filter, q, start_date, end_date } = req.query;
     const query = {};
     if (status_filter && ALLOWED_STATUSES.includes(status_filter)) query.status = status_filter;
     if (q) {
@@ -562,6 +562,11 @@ router.get("/complaints", requireAuth, async (req, res) => {
         { address: rx }, { village: rx }, { city: rx }, { district: rx },
         { state: rx }, { pincode: rx },
       ];
+    }
+    if (start_date || end_date) {
+      query.date = {};
+      if (start_date) query.date.$gte = start_date;
+      if (end_date) query.date.$lte = end_date;
     }
     const items = await db.collection("complaints").find(query, { projection: { _id: 0 } }).sort({ created_at: -1 }).limit(1000).toArray();
     res.json(items);
@@ -626,7 +631,7 @@ router.patch("/complaints/:cid/status", requireAdmin, async (req, res) => {
 });
 
 // POST /api/complaints/:cid/servicer-status
-router.post("/complaints/:cid/servicer-status", requireAuth, upload.single("file"), async (req, res) => {
+router.post("/complaints/:cid/servicer-status", requireAuth, upload.array("files", 5), async (req, res) => {
   try {
     const { cid } = req.params;
     const { status, note } = req.body;
@@ -637,43 +642,56 @@ router.post("/complaints/:cid/servicer-status", requireAuth, upload.single("file
     if (!ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({ detail: `Invalid status. Allowed: ${ALLOWED_STATUSES.join(", ")}` });
     }
-    if (!req.file) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ detail: "File upload is required for servicer status updates" });
     }
 
     const doc = await db.collection("complaints").findOne({ complaint_id: cid }, { projection: { _id: 0 } });
     if (!doc) return res.status(404).json({ detail: "Complaint not found" });
 
-    // Process and upload file to object storage
-    const contentType = (req.file.mimetype || "").toLowerCase();
-    if (!ALLOWED_SERVICER_FILE_MIME.has(contentType)) {
-      return res.status(400).json({ detail: "Only PDF, Word, and images allowed" });
+    const existingPhotos = doc.photos || [];
+    if (existingPhotos.length + req.files.length > MAX_PHOTOS_PER_COMPLAINT) {
+      return res.status(400).json({ detail: `Cannot upload ${req.files.length} file(s). Maximum total attachments allowed is ${MAX_PHOTOS_PER_COMPLAINT}.` });
     }
-    if (req.file.size === 0) return res.status(400).json({ detail: "Empty file" });
 
-    const originalName = req.file.originalname || "attachment";
-    const ext = originalName.split(".").pop() || "bin";
-    const fileId = uuidv4();
-    const path = `${APP_NAME}/complaints/${cid}/${fileId}.${ext}`;
-    
-    const uploadResult = await storagePut(path, req.file.buffer, contentType);
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const contentType = (file.mimetype || "").toLowerCase();
+      if (!ALLOWED_SERVICER_FILE_MIME.has(contentType)) {
+        return res.status(400).json({ detail: `File type not allowed for: ${file.originalname}` });
+      }
+      if (file.size === 0) continue;
 
-    const fileRecord = {
-      id: fileId,
-      storage_path: uploadResult.path,
-      original_filename: originalName,
-      content_type: contentType,
-      size: uploadResult.size || req.file.size,
-      uploaded_at: nowIso(),
-    };
+      const originalName = file.originalname || "attachment";
+      const ext = originalName.split(".").pop() || "bin";
+      const fileId = uuidv4();
+      const path = `${APP_NAME}/complaints/${cid}/${fileId}.${ext}`;
+      
+      const uploadResult = await storagePut(path, file.buffer, contentType);
+
+      const fileRecord = {
+        id: fileId,
+        storage_path: uploadResult.path,
+        original_filename: originalName,
+        content_type: contentType,
+        size: uploadResult.size || file.size,
+        uploaded_at: nowIso(),
+      };
+      uploadedFiles.push(fileRecord);
+    }
+
+    if (uploadedFiles.length === 0) {
+      return res.status(400).json({ detail: "No valid files uploaded" });
+    }
 
     // Prepare update queries
     const now = nowIso();
     const updaterEmail = req.adminEmail;
     const updateNote = note ? note.trim() : "";
+    const filesList = uploadedFiles.map(f => f.original_filename).join(", ");
     const timelineEntry = {
       status,
-      note: `${updateNote ? updateNote + " " : ""}(Status updated by Servicer ${updaterEmail}. Uploaded: ${originalName})`,
+      note: `${updateNote ? updateNote + " " : ""}(Status updated by Servicer ${updaterEmail}. Uploaded: ${filesList})`,
       at: now,
     };
 
@@ -682,7 +700,7 @@ router.post("/complaints/:cid/servicer-status", requireAuth, upload.single("file
       { complaint_id: cid },
       { 
         $push: { 
-          photos: fileRecord,
+          photos: { $each: uploadedFiles },
           status_history: timelineEntry 
         }, 
         $set: { 
@@ -975,11 +993,18 @@ router.delete("/customers/:phone", requireAdmin, async (req, res) => {
 // GET /api/stats
 router.get("/stats", requireAuth, async (req, res) => {
   try {
+    const { start_date, end_date } = req.query;
+    const query = {};
+    if (start_date || end_date) {
+      query.date = {};
+      if (start_date) query.date.$gte = start_date;
+      if (end_date) query.date.$lte = end_date;
+    }
     const [total, pending, inProgress, resolved] = await Promise.all([
-      db.collection("complaints").countDocuments({}),
-      db.collection("complaints").countDocuments({ status: "Pending" }),
-      db.collection("complaints").countDocuments({ status: "In Progress" }),
-      db.collection("complaints").countDocuments({ status: "Resolved" }),
+      db.collection("complaints").countDocuments(query),
+      db.collection("complaints").countDocuments({ ...query, status: "Pending" }),
+      db.collection("complaints").countDocuments({ ...query, status: "In Progress" }),
+      db.collection("complaints").countDocuments({ ...query, status: "Resolved" }),
     ]);
     res.json({ total, pending, in_progress: inProgress, resolved });
   } catch (e) {
