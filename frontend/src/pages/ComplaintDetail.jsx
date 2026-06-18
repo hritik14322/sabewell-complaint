@@ -478,13 +478,15 @@ export default function ComplaintDetail() {
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <Button
-              onClick={sendFreeWhatsApp}
-              className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
-              data-testid="send-whatsapp-btn"
-            >
-              <MessageCircle className="h-4 w-4" /> Send via WhatsApp (Free)
-            </Button>
+            {role === "admin" && (
+              <Button
+                onClick={sendFreeWhatsApp}
+                className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+                data-testid="send-whatsapp-btn"
+              >
+                <MessageCircle className="h-4 w-4" /> Send via WhatsApp (Free)
+              </Button>
+            )}
             <Link
               to={`/track/${c.complaint_id}`}
               target="_blank"
