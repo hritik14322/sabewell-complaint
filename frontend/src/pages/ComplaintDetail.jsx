@@ -147,6 +147,27 @@ export default function ComplaintDetail() {
     window.open(url, "_blank");
   };
 
+  const getBriefWhatsAppMessage = () => {
+    if (!c) return "";
+    const trackUrl = `${window.location.origin}/track/${c.complaint_id}`;
+    return `*Sabewell Job Assignment*\n\n` +
+      `*ID:* ${c.complaint_id}\n` +
+      `*Date:* ${c.date || "N/A"}\n` +
+      `*Customer:* ${c.name}\n` +
+      `*Phone:* ${c.phone}\n` +
+      `*Product:* ${c.product_details || "N/A"} (${c.product_serial || "N/A"})\n` +
+      `*Issue:* ${c.issue_description || "N/A"}\n` +
+      `*Address:* ${[c.address, c.village, c.city, c.district, c.state, c.pincode].filter(Boolean).join(", ")}\n\n` +
+      `*Track:* ${trackUrl}`;
+  };
+
+  const shareComplaintBrief = () => {
+    if (!c) return;
+    const text = encodeURIComponent(getBriefWhatsAppMessage());
+    const url = `https://api.whatsapp.com/send?text=${text}`;
+    window.open(url, "_blank");
+  };
+
   const trackUrl = `${window.location.origin}/track/${cid}`;
   const copyLink = async () => {
     let copied = false;
@@ -479,13 +500,22 @@ export default function ComplaintDetail() {
               </Button>
             </div>
             {role === "admin" && (
-              <Button
-                onClick={sendFreeWhatsApp}
-                className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
-                data-testid="send-whatsapp-btn"
-              >
-                <MessageCircle className="h-4 w-4" /> Send via WhatsApp (Free)
-              </Button>
+              <>
+                <Button
+                  onClick={sendFreeWhatsApp}
+                  className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+                  data-testid="send-whatsapp-btn"
+                >
+                  <MessageCircle className="h-4 w-4" /> Send via WhatsApp (Free)
+                </Button>
+                <Button
+                  onClick={shareComplaintBrief}
+                  className="mt-2 w-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-2"
+                  data-testid="share-whatsapp-btn"
+                >
+                  <MessageCircle className="h-4 w-4" /> Share Job to WhatsApp
+                </Button>
+              </>
             )}
             <Link
               to={`/track/${c.complaint_id}`}
