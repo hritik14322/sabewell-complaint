@@ -30,6 +30,11 @@ const TWILIO_SMS_FROM = process.env.TWILIO_SMS_FROM || "";
 
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY || "";
 const FAST2SMS_WHATSAPP_MESSAGE_ID = process.env.FAST2SMS_WHATSAPP_MESSAGE_ID || "";
+const FAST2SMS_ROUTE = process.env.FAST2SMS_ROUTE || "q";
+const FAST2SMS_SENDER_ID = process.env.FAST2SMS_SENDER_ID || "";
+const FAST2SMS_ENTITY_ID = process.env.FAST2SMS_ENTITY_ID || "";
+const FAST2SMS_TEMPLATE_ID_REGISTER = process.env.FAST2SMS_TEMPLATE_ID_REGISTER || "";
+const FAST2SMS_TEMPLATE_ID_UPDATE = process.env.FAST2SMS_TEMPLATE_ID_UPDATE || "";
 
 const STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage";
 const EMERGENT_KEY = process.env.EMERGENT_LLM_KEY || "";
@@ -313,7 +318,7 @@ async function sendWhatsapp(toPhone, body, contentVariables = null) {
   }
 }
 
-async function sendSmsFast2sms(toPhone, body) {
+async function sendSmsFast2sms(toPhone, body, variables = []) {
   if (!FAST2SMS_API_KEY) return [false, "Fast2SMS not configured"];
   const normalized = normalizePhone(toPhone);
   let mobile;
@@ -328,20 +333,39 @@ async function sendSmsFast2sms(toPhone, body) {
     return [false, `Invalid Indian mobile: ${mobile}`];
   }
   try {
+    const params = {
+      authorization: FAST2SMS_API_KEY,
+      numbers: mobile,
+    };
+
+    const isRegister = body.toLowerCase().includes("registered");
+    const templateId = isRegister ? FAST2SMS_TEMPLATE_ID_REGISTER : FAST2SMS_TEMPLATE_ID_UPDATE;
+
+    if (FAST2SMS_ROUTE === "dlt") {
+      params.route = "dlt";
+      params.sender_id = FAST2SMS_SENDER_ID;
+      params.message = templateId;
+      params.variables_values = variables.join("|");
+    } else if (FAST2SMS_ROUTE === "dlt_manual") {
+      params.route = "dlt_manual";
+      params.sender_id = FAST2SMS_SENDER_ID;
+      params.entity_id = FAST2SMS_ENTITY_ID;
+      params.template_id = templateId;
+      params.message = body;
+    } else {
+      params.route = "q";
+      params.message = body;
+      params.language = "english";
+    }
+
     const resp = await axios.get("https://www.fast2sms.com/dev/bulkV2", {
-      params: {
-        authorization: FAST2SMS_API_KEY,
-        message: body,
-        language: "english",
-        route: "q",
-        numbers: mobile,
-      },
+      params,
       timeout: 30000,
     });
     const data = resp.data;
     if (resp.status < 300 && data.return) {
-      console.info(`Fast2SMS SMS sent to ${mobile}`);
-      return [true, `SMS sent to ${mobile} (Fast2SMS)`];
+      console.info(`Fast2SMS SMS sent to ${mobile} (route: ${params.route})`);
+      return [true, `SMS sent to ${mobile} (Fast2SMS - ${params.route})`];
     }
     const err = (data.message || String(resp.status)).toString().slice(0, 200);
     console.warn("Fast2SMS SMS failed:", err);
@@ -515,7 +539,7 @@ router.post("/complaints", optionalAuth, async (req, res) => {
       `Hello ${complaint.name}, your complaint has been registered with ${BRAND_NAME}.\n` +
       `Complaint ID: ${cid}\nStatus: Pending\nTrack here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(phone, bodyMsg);
+    let [smsOk, smsMsg] = await sendSmsFast2sms(phone, bodyMsg, [complaint.name, BRAND_NAME, cid, "Pending", trackUrl]);
     if (!smsOk) {
       const [twOk, twMsg] = await sendSms(phone, bodyMsg);
       if (twOk) { smsOk = true; smsMsg = twMsg; }
@@ -614,7 +638,7 @@ router.patch("/complaints/:cid/status", requireAdmin, async (req, res) => {
       (note ? `Note: ${note}\n` : "") +
       `Track here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(doc.phone, bodyMsg);
+    let [smsOk, smsMsg] = await sendSmsFast2sms(doc.phone, bodyMsg, [doc.name, BRAND_NAME, cid, status, trackUrl]);
     if (!smsOk) {
       const [twOk, twMsg] = await sendSms(doc.phone, bodyMsg);
       if (twOk) { smsOk = true; smsMsg = twMsg; }
@@ -718,7 +742,7 @@ router.post("/complaints/:cid/servicer-status", requireAuth, upload.array("files
     const bodyMsg = `Hello ${updatedDoc.name}, update on your complaint with ${brand}.\n\n` +
       `Complaint ID: ${cid}\nStatus: ${status}\nTrack here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(updatedDoc.phone, bodyMsg);
+    let [smsOk, smsMsg] = await sendSmsFast2sms(updatedDoc.phone, bodyMsg, [updatedDoc.name, brand, cid, status, trackUrl]);
     if (!smsOk) {
       const [twOk, twMsg] = await sendSms(updatedDoc.phone, bodyMsg);
       if (twOk) { smsOk = true; smsMsg = twMsg; }
