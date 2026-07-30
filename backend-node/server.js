@@ -638,16 +638,9 @@ router.patch("/complaints/:cid/status", requireAdmin, async (req, res) => {
       (note ? `Note: ${note}\n` : "") +
       `Track here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(doc.phone, bodyMsg, [doc.name, BRAND_NAME, cid, status, trackUrl]);
-    if (!smsOk) {
-      const [twOk, twMsg] = await sendSms(doc.phone, bodyMsg);
-      if (twOk) { smsOk = true; smsMsg = twMsg; }
-      else smsMsg = `Fast2SMS: ${smsMsg} | Twilio: ${twMsg}`;
-    }
-    const [waOk, waMsg] = await sendWhatsappFast2sms(doc.phone, [doc.name, cid, status, trackUrl]);
-
-    doc.sms_status = { ok: smsOk, message: smsMsg };
-    doc.whatsapp_status = { ok: waOk, message: waMsg };
+    // Notifications are disabled for status updates
+    doc.sms_status = { ok: false, message: "Disabled for updates" };
+    doc.whatsapp_status = { ok: false, message: "Disabled for updates" };
     res.json(doc);
   } catch (e) {
     res.status(500).json({ detail: e.message });
@@ -742,16 +735,9 @@ router.post("/complaints/:cid/servicer-status", requireAuth, upload.array("files
     const bodyMsg = `Hello ${updatedDoc.name}, update on your complaint with ${brand}.\n\n` +
       `Complaint ID: ${cid}\nStatus: ${status}\nTrack here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(updatedDoc.phone, bodyMsg, [updatedDoc.name, brand, cid, status, trackUrl]);
-    if (!smsOk) {
-      const [twOk, twMsg] = await sendSms(updatedDoc.phone, bodyMsg);
-      if (twOk) { smsOk = true; smsMsg = twMsg; }
-      else smsMsg = `Fast2SMS: ${smsMsg} | Twilio: ${twMsg}`;
-    }
-    const [waOk, waMsg] = await sendWhatsappFast2sms(updatedDoc.phone, [updatedDoc.name, cid, status, trackUrl]);
-
-    updatedDoc.sms_status = { ok: smsOk, message: smsMsg };
-    updatedDoc.whatsapp_status = { ok: waOk, message: waMsg };
+    // Notifications are disabled for status updates
+    updatedDoc.sms_status = { ok: false, message: "Disabled for updates" };
+    updatedDoc.whatsapp_status = { ok: false, message: "Disabled for updates" };
 
     res.json(updatedDoc);
   } catch (e) {
