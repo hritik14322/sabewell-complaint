@@ -539,7 +539,7 @@ router.post("/complaints", optionalAuth, async (req, res) => {
       `Hello ${complaint.name}, your complaint has been registered with ${BRAND_NAME}.\n` +
       `Complaint ID: ${cid}\nStatus: Pending\nTrack here: ${trackUrl}`;
 
-    let [smsOk, smsMsg] = await sendSmsFast2sms(phone, bodyMsg, [complaint.name, BRAND_NAME, cid, "Pending", trackUrl]);
+    let [smsOk, smsMsg] = await sendSmsFast2sms(phone, bodyMsg, [cid, BRAND_NAME, complaint.name, "Pending", trackUrl]);
     if (!smsOk) {
       const [twOk, twMsg] = await sendSms(phone, bodyMsg);
       if (twOk) { smsOk = true; smsMsg = twMsg; }
