@@ -53,6 +53,7 @@ export default function NewComplaint() {
 
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
   const [photos, setPhotos] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -62,6 +63,20 @@ export default function NewComplaint() {
   const lastLookedRef = useRef("");
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Validate Indian phone number on change
+  const handlePhoneChange = (e) => {
+    const val = e.target.value;
+    setForm((f) => ({ ...f, phone: val }));
+    const digits = val.replace(/[\s\-().+]/g, "");
+    if (!val) {
+      setPhoneError("");
+    } else if (!/^[6-9]\d{9}$/.test(digits) && !/^91[6-9]\d{9}$/.test(digits)) {
+      setPhoneError("Invalid phone number. Enter a valid 10-digit Indian mobile number.");
+    } else {
+      setPhoneError("");
+    }
+  };
 
   // Debounced phone-based customer lookup
   useEffect(() => {
@@ -175,6 +190,10 @@ export default function NewComplaint() {
       toast.error("Please fill name, phone, address, serial, and issue");
       return;
     }
+    if (phoneError) {
+      toast.error("Please enter a valid phone number before submitting.");
+      return;
+    }
     setSaving(true);
     try {
       const { data } = await api.post("/complaints", form);
@@ -248,12 +267,18 @@ export default function NewComplaint() {
                 <Input
                   id="phone"
                   value={form.phone}
-                  onChange={set("phone")}
+                  onChange={handlePhoneChange}
                   placeholder="+9198765XXXXX or 98765XXXXX"
                   required
-                  className="bg-white border-slate-300 focus-visible:ring-slate-900"
+                  className={`bg-white border-slate-300 focus-visible:ring-slate-900 ${phoneError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                   data-testid="form-phone-input"
                 />
+                {phoneError && (
+                  <p className="flex items-center gap-1.5 text-xs text-red-600 mt-1">
+                    <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                    {phoneError}
+                  </p>
+                )}
 
               </div>
               <div className="space-y-1.5">
