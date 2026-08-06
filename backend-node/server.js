@@ -974,7 +974,24 @@ router.patch("/customers/:phone", requireAdmin, async (req, res) => {
     }
 
     await db.collection("customers").updateOne({ phone }, { $set: update });
+
+    // Sync updated fields to all complaints belonging to this customer
     const finalPhone = newPhone && newPhone !== phone ? newPhone : phone;
+    await db.collection("complaints").updateMany(
+      { phone },
+      { $set: {
+          name: update.name,
+          address: update.address,
+          village: update.village,
+          city: update.city,
+          district: update.district,
+          state: update.state,
+          pincode: update.pincode,
+          updated_at: now,
+        }
+      }
+    );
+
     const refreshed = await db.collection("customers").findOne({ phone: finalPhone }, { projection: { _id: 0 } });
     res.json(customerClean(refreshed));
   } catch (e) {
